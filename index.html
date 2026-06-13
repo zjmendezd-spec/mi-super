@@ -462,8 +462,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
       <div id="hg-month-disp" style="font-size:12px;font-weight:800;color:#E84393;min-width:95px;text-align:center">JUNIO 2026</div>
       <button id="hg-next" style="background:#2E2C4A;border:1px solid #413E62;border-radius:7px;padding:4px 10px;color:#F2EFE9;font-weight:700;cursor:pointer;font-size:13px">›</button>
       <button id="hg-new-mes" style="background:rgba(232,67,147,.15);border:1px solid rgba(232,67,147,.3);color:#E84393;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit">+ Nuevo mes</button>
+      <button onclick="if(window.saveHormigas){window.saveHormigas();this.textContent='✅ Enviado!';setTimeout(()=>this.textContent='☁️ Sincronizar',2000);}else{this.textContent='❌ Error';}" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit">☁️ Sincronizar</button>
+      <button onclick="hgDiag()" style="background:rgba(255,200,0,.2);border:1px solid rgba(255,200,0,.4);color:#FFD700;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit">🔍 Diagnóstico</button>
     </div>
   </div>
+
+  <div id="hg-diag-panel" style="display:none;background:#1A1828;border:1.5px solid #FFD700;border-radius:10px;padding:1rem;margin-bottom:.75rem;font-size:12px;font-family:monospace;color:#FFD700;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto"></div>
 
   <div class="hg-subnav">
     <button class="hgtab active" id="hgt-gastos" onclick="hgTab('gastos')">📋 Gastos</button>
@@ -632,81 +636,128 @@ import{getFirestore,doc,onSnapshot,setDoc,getDoc}from"https://www.gstatic.com/fi
 const cfg={apiKey:"AIzaSyBuldWhtTyv1kdfRkEdcPzg5UAyOtkcQNU",authDomain:"mi-super-janelle.firebaseapp.com",projectId:"mi-super-janelle",storageBucket:"mi-super-janelle.firebasestorage.app",messagingSenderId:"497391816239",appId:"1:497391816239:web:31934cba82f363d8d1c0da"};
 const app=initializeApp(cfg);
 const db=getFirestore(app);
-const D=doc(db,'misuper','shared');
+const DS=doc(db,'misuper','shared');   // Mi Super data
+const DH=doc(db,'misuper','hormigas'); // Hormigas data (separate doc)
+
 function setSS(s){var e=document.getElementById('sync-status');if(!e)return;var m={ok:'🟢 Sincronizado',saving:'🟡 Guardando…',error:'🔴 Error',offline:'⚪ Sin conexión'};e.textContent=m[s]||m.ok;}
-var _t=null;
+
+var _ts=null,_th=null;
+
+// Save Mi Super data
 window.saveRemote=function(){
-  setSS('saving');clearTimeout(_t);
-  _t=setTimeout(async function(){
+  setSS('saving');
+  clearTimeout(_ts);
+  _ts=setTimeout(async function(){
     try{
-      await setDoc(D,{
-        items:window._items,
-        trips:window._trips,
-        pending:window._pending,
-        customStores:window._customStores,
-        hg_auto_pay:localStorage.getItem('hg_auto_pay')||'{}',
-        hg_deudas:localStorage.getItem('hg_deudas')||'[]',
-        hg_prestamos:localStorage.getItem('hg_prestamos')||'[]',
-        hg_months:localStorage.getItem('hg_months')||'{}',
-        hg_msi_abono:localStorage.getItem('hg_msi_abono')||'0',
-        hg_seguro:localStorage.getItem('hg_seguro')||'false',
+      await setDoc(DS,{
+        items:window._items||[],
+        trips:window._trips||[],
+        pending:window._pending||[],
+        customStores:window._customStores||[],
         updatedAt:Date.now()
       });
       setSS('ok');
-    }catch(e){setSS('error');}
+    }catch(e){setSS('error');console.error('saveRemote error',e);}
   },600);
 };
-onSnapshot(D,function(snap){
+
+// Save Hormigas data separately
+window.saveHormigas=function(){
+  setSS('saving');
+  clearTimeout(_th);
+  _th=setTimeout(async function(){
+    try{
+      var payload={
+        hg_months:localStorage.getItem('hg_months')||'{}',
+        hg_deudas:localStorage.getItem('hg_deudas')||'[]',
+        hg_prestamos:localStorage.getItem('hg_prestamos')||'[]',
+        hg_auto_pay:localStorage.getItem('hg_auto_pay')||'{}',
+        hg_msi_abono:localStorage.getItem('hg_msi_abono')||'0',
+        hg_seguro:localStorage.getItem('hg_seguro')||'false',
+        updatedAt:Date.now()
+      };
+      await setDoc(DH,payload);
+      setSS('ok');
+      console.log('[HG] Saved to Firebase OK');
+    }catch(e){
+      setSS('error');
+      console.error('[HG] Save error:',e.message||e);
+    }
+  },400);
+};
+
+// Listen to Mi Super changes
+onSnapshot(DS,function(snap){
   if(!snap.exists())return;
   var d=snap.data();
   if((d.items||[]).length>=(window._items||[]).length) window._items=d.items||[];
   if((d.trips||[]).length>=(window._trips||[]).length) window._trips=d.trips||[];
   if((d.pending||[]).length>=(window._pending||[]).length) window._pending=d.pending||[];
   window._customStores=d.customStores||window._customStores||[];
-  // Sync ALL HG keys from Firebase to localStorage
-  ['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'].forEach(function(k){
-    if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,String(d[k]));
-  });
   window._saveLocal();
   window._updateGrand&&window._updateGrand();
-  // Re-render active tab
-  var active=['lista','historial','gastos'].find(function(t){
-    var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');
-  });
-  if(active==='lista')window._rl&&window._rl();
-  else if(active==='historial')window._rh&&window._rh();
-  else if(active==='gastos'){
-    // Re-render whatever HG sub-panel is showing
-    var hgActive=['gastos','deudas','auto'].find(function(p){
-      var el=document.getElementById('hg-panel-'+p);return el&&el.style.display!=='none';
-    });
-    if(hgActive==='auto'&&typeof window.hgRenderAuto!=='undefined')window.hgRenderAuto();
-    else if(hgActive==='deudas'&&typeof window.hgRenderDeudas!=='undefined')window.hgRenderDeudas();
-    else if(typeof window.hgRenderGastos!=='undefined')window.hgRenderGastos();
-  }
+  var at=['lista','historial'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});
+  if(at==='lista')window._rl&&window._rl();
+  else if(at==='historial')window._rh&&window._rh();
   setSS('ok');
 },function(){setSS('offline');});
+
+// Listen to Hormigas changes
+onSnapshot(DH,function(snap){
+  if(!snap.exists()){
+    console.log('[HG] No Hormigas document in Firebase yet');
+    return;
+  }
+  var d=snap.data();
+  console.log('[HG] Received from Firebase, keys:',Object.keys(d));
+  // Write all HG keys to localStorage
+  ['hg_months','hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){
+    if(d[k]!==undefined&&d[k]!==null){
+      localStorage.setItem(k,String(d[k]));
+      console.log('[HG] Set',k,'len=',String(d[k]).length);
+    }
+  });
+  // Re-render if on Gastos tab
+  var gasEl=document.getElementById('sec-gastos');
+  if(gasEl&&gasEl.classList.contains('active')){
+    var hgActive=['gastos','deudas','auto'].find(function(p){
+      var el=document.getElementById('hg-panel-'+p);return el&&el.style.display!=='none';
+    })||'gastos';
+    setTimeout(function(){
+      if(hgActive==='auto'&&window.hgRenderAuto)window.hgRenderAuto();
+      else if(hgActive==='deudas'&&window.hgRenderDeudas)window.hgRenderDeudas();
+      else if(window.hgRenderGastos)window.hgRenderGastos();
+    },50);
+  }
+  setSS('ok');
+},function(err){setSS('offline');console.error('[HG] onSnapshot error:',err);});
+
+// Initial load
 (async function(){
   try{
-    var snap=await getDoc(D);
+    // Load Mi Super
+    var snap=await getDoc(DS);
     if(snap.exists()){
       var d=snap.data();
       var remoteTs=d.updatedAt||0;
       var localTs=parseInt(localStorage.getItem('super_ts')||0);
-      // Always sync HG keys regardless of timestamp
-      ['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'].forEach(function(k){
-        if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,String(d[k]));
-      });
-      // Sync list data if remote is newer or local is empty
       if(!(window._items||[]).length||remoteTs>localTs){
         window._items=d.items||window._items||[];
         window._trips=d.trips||window._trips||[];
         window._pending=d.pending||window._pending||[];
         window._customStores=d.customStores||window._customStores||[];
         window._saveLocal();
-        localStorage.setItem('super_ts',remoteTs||Date.now());
+        localStorage.setItem('super_ts',String(remoteTs||Date.now()));
       }
     }else{window.saveRemote();}
+    // Load Hormigas
+    var snapH=await getDoc(DH);
+    if(snapH.exists()){
+      var dh=snapH.data();
+      ['hg_months','hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){
+        if(dh[k]!==undefined&&dh[k]!==null)localStorage.setItem(k,String(dh[k]));
+      });
+    }else{window.saveHormigas();}
   }catch(e){setSS('offline');}
   window._rl&&window._rl();
   window._updateGrand&&window._updateGrand();
@@ -1062,7 +1113,7 @@ function hgLoad(){
     return n;
   }catch(e){return{};}
 }
-function hgSave(md){localStorage.setItem('hg_months',JSON.stringify(md));if(window.saveRemote)window.saveRemote();}
+function hgSave(md){localStorage.setItem('hg_months',JSON.stringify(md));if(window.saveHormigas)window.saveHormigas();}
 // Purge all months with zero or empty total on startup
 (function hgPurgeEmpty(){
   var md=hgLoad();
@@ -1242,16 +1293,16 @@ window.hgRenderDeudas=function(){
   }).join('')||'<div style="text-align:center;padding:1.25rem;color:var(--muted);font-size:13px">Sin préstamos registrados</div>';
   var da=document.getElementById('dt-adeudo');var dm=document.getElementById('dt-mens');var dp=document.getElementById('dt-prest');if(da)da.textContent=fmtN(totalAdeudo+totalPrest);if(dm)dm.textContent=fmtN(totalMSI);if(dp)dp.textContent=fmtN(totalPrest);
 };
-window.hgUpdD=function(i,f,v){var d=JSON.parse(localStorage.getItem('hg_deudas')||'[]');d[i][f]=v;localStorage.setItem('hg_deudas',JSON.stringify(d));window.hgRenderDeudas();};
-window.hgDelD=function(i){var d=JSON.parse(localStorage.getItem('hg_deudas')||'[]');d.splice(i,1);localStorage.setItem('hg_deudas',JSON.stringify(d));window.hgRenderDeudas();};
-window.hgUpdP=function(i,f,v){var p=JSON.parse(localStorage.getItem('hg_prestamos')||'[]');p[i][f]=v;localStorage.setItem('hg_prestamos',JSON.stringify(p));window.hgRenderDeudas();};
+window.hgUpdD=function(i,f,v){var d=JSON.parse(localStorage.getItem('hg_deudas')||'[]');d[i][f]=v;localStorage.setItem('hg_deudas',JSON.stringify(d));window.hgRenderDeudas();if(window.saveHormigas)window.saveHormigas();};
+window.hgDelD=function(i){var d=JSON.parse(localStorage.getItem('hg_deudas')||'[]');d.splice(i,1);localStorage.setItem('hg_deudas',JSON.stringify(d));window.hgRenderDeudas();if(window.saveHormigas)window.saveHormigas();};
+window.hgUpdP=function(i,f,v){var p=JSON.parse(localStorage.getItem('hg_prestamos')||'[]');p[i][f]=v;localStorage.setItem('hg_prestamos',JSON.stringify(p));window.hgRenderDeudas();if(window.saveHormigas)window.saveHormigas();};
 window.hgDelP=function(i){var p=JSON.parse(localStorage.getItem('hg_prestamos')||'[]');p.splice(i,1);localStorage.setItem('hg_prestamos',JSON.stringify(p));window.hgRenderDeudas();};
-window.updateMsiAbono=function(v){localStorage.setItem('hg_msi_abono',v||0);window.hgRenderDeudas();};
-document.getElementById('hg-add-deuda').onclick=function(){var d=JSON.parse(localStorage.getItem('hg_deudas')||'null');if(!d)d=[];d.push({desc:'',fecha:'',monto:'',msi:''});localStorage.setItem('hg_deudas',JSON.stringify(d));window.hgRenderDeudas();};
-document.getElementById('hg-add-prest').onclick=function(){var p=JSON.parse(localStorage.getItem('hg_prestamos')||'null');if(!p)p=[];p.push({desc:'',fecha:'',monto:'',pagado:''});localStorage.setItem('hg_prestamos',JSON.stringify(p));window.hgRenderDeudas();};
+window.updateMsiAbono=function(v){localStorage.setItem('hg_msi_abono',v||0);window.hgRenderDeudas();if(window.saveHormigas)window.saveHormigas();};
+document.getElementById('hg-add-deuda').onclick=function(){var d=JSON.parse(localStorage.getItem('hg_deudas')||'null');if(!d)d=[];d.push({desc:'',fecha:'',monto:'',msi:''});localStorage.setItem('hg_deudas',JSON.stringify(d));window.hgRenderDeudas();if(window.saveHormigas)window.saveHormigas();};
+document.getElementById('hg-add-prest').onclick=function(){var p=JSON.parse(localStorage.getItem('hg_prestamos')||'null');if(!p)p=[];p.push({desc:'',fecha:'',monto:'',pagado:''});localStorage.setItem('hg_prestamos',JSON.stringify(p));window.hgRenderDeudas();if(window.saveHormigas)window.saveHormigas();};
 window._autoDetail=false;
 function hgAutoPayments(){try{return JSON.parse(localStorage.getItem('hg_auto_pay')||'{}');}catch(e){return{};}}
-function hgSaveAutoPay(pays){localStorage.setItem('hg_auto_pay',JSON.stringify(pays));if(window.saveRemote)window.saveRemote();}
+function hgSaveAutoPay(pays){localStorage.setItem('hg_auto_pay',JSON.stringify(pays));if(window.saveHormigas)window.saveHormigas();}
 window.hgUpdAutoPay=function(idx,field,val){var pays=hgAutoPayments();if(!pays[idx])pays[idx]={};pays[idx][field]=val;hgSaveAutoPay(pays);window.hgRenderAuto();};
 window.hgRenderAuto=function(){
   var pays=hgAutoPayments();var pagadas=AMORT.filter(function(r){return r.p;}).length;var actual=AMORT.find(function(r){return r.a;});
@@ -1281,13 +1332,29 @@ window.hgRenderAuto=function(){
   }).join('');
   setTimeout(function(){var ar=tbody&&tbody.querySelector('tr[style*="FFF8E1"]');if(ar)ar.scrollIntoView({block:'center',behavior:'smooth'});},100);
 };
-document.getElementById('hg-seguro-btn').onclick=function(){var sp=JSON.parse(localStorage.getItem('hg_seguro')||'false');localStorage.setItem('hg_seguro',JSON.stringify(!sp));var al=document.getElementById('hg-seguro-alert');if(al)al.style.display=!sp?'none':'flex';hgToast(!sp?'Seguro marcado pagado ✓':'Seguro pendiente');};
+document.getElementById('hg-seguro-btn').onclick=function(){var sp=JSON.parse(localStorage.getItem('hg_seguro')||'false');localStorage.setItem('hg_seguro',JSON.stringify(!sp));if(window.saveHormigas)window.saveHormigas();var al=document.getElementById('hg-seguro-alert');if(al)al.style.display=!sp?'none':'flex';hgToast(!sp?'Seguro marcado pagado ✓':'Seguro pendiente');};
 document.getElementById('auto-detail-btn').onclick=function(){window._autoDetail=!window._autoDetail;this.textContent=window._autoDetail?'⊖ Ocultar':'⊕ Ver detalle';window.hgRenderAuto();};
 hgUpdateDisp();
 window.hgRenderGastos();
 })();
 
 // ── Init Mi Súper ──
+window.hgDiag=function(){
+  var el=document.getElementById('hg-diag-panel');
+  if(!el)return;
+  if(el.style.display!=='none'){el.style.display='none';return;}
+  var keys=['hg_months','hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'];
+  var info='=== localStorage ===\n';
+  keys.forEach(function(k){
+    var v=localStorage.getItem(k);
+    info+=k+': '+(v?v.length+' chars → '+v.substring(0,60)+'…':'VACÍO')+'\n';
+  });
+  info+='\n=== Firebase saveHormigas ===\n';
+  info+=(window.saveHormigas?'✅ Función disponible':'❌ NO disponible')+'\n';
+  info+='\nPresiona ☁️ Sincronizar y recarga para ver si llegan datos.';
+  el.textContent=info;
+  el.style.display='block';
+};
 buildSel('inp-store');
 renderList();
 window._updateGrand();
