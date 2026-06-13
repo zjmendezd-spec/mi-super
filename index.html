@@ -2,7 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Mi Súper 🛒</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -46,8 +48,13 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);min-
 .nav-btn.active{background:rgba(255,255,255,.25);color:#fff}
 
 /* MAIN */
-.app{max-width:1100px;margin:0 auto;padding:1rem 1.25rem 4rem}
-@media(max-width:600px){.app{padding:.75rem .75rem 4rem}}
+.app{max-width:1100px;margin:0 auto;padding:1rem 1rem 4rem;box-sizing:border-box}
+@media(max-width:480px){
+  .app{padding:.625rem .625rem 4rem}
+  .row{flex-direction:column}
+  .row>.field{min-width:0;width:100%}
+  input[type=text],input[type=number],input[type=date],select,textarea{font-size:16px!important}
+}
 .section{display:none}
 .section.active{display:block}
 
@@ -318,128 +325,131 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
     </div>
   </div>
   <div class="nav-strip">
-    <button class="nav-btn active" data-tab="lista" id="t-lista" onclick="showTab('lista')"><span class="ni">📋</span>Lista</button>
-    <button class="nav-btn" data-tab="pendientes" id="t-pendientes" onclick="showTab('pendientes')"><span class="ni">🔖</span>Pendientes</button>
-    <button class="nav-btn" data-tab="historial" id="t-historial" onclick="showTab('historial')"><span class="ni">🕐</span>Historial</button>
-    <button class="nav-btn" data-tab="mensual" id="t-mensual" onclick="showTab('mensual')"><span class="ni">📅</span>Mensual</button>
-    <button class="nav-btn" data-tab="resumen" id="t-resumen" onclick="showTab('resumen')"><span class="ni">📊</span>Resumen</button>
+    <button class="nav-btn active" data-tab="lista" id="t-lista" onclick="showTab('lista')"><span class="ni">🛒</span>Lista</button>
+    <button class="nav-btn" data-tab="historial" id="t-historial" onclick="showTab('historial')"><span class="ni">📊</span>Historial</button>
     <button class="nav-btn" data-tab="gastos" id="t-gastos" onclick="showTab('gastos')"><span class="ni">🐜</span>Gastos</button>
   </div>
 </div>
 
 <div class="app">
 
-<!-- ═══ LISTA ═══ -->
+<!-- ═══ LISTA + PENDIENTES ═══ -->
 <div id="sec-lista" class="section active">
-  <div class="card">
-    <div class="card-title">➕ Agregar artículo</div>
-    <div class="field">
-      <label>Nombre</label>
-      <input type="text" id="inp-name" placeholder="¿Qué vas a comprar?" autocomplete="off" list="sugg-list-dl" oninput="showSugg(this.value)" onkeydown="if(event.key==='Enter')addItem()">
-      <datalist id="sugg-list-dl"></datalist>
-    </div>
-    <div class="row">
-      <div class="field"><label>Precio unitario</label><input type="number" id="inp-price" placeholder="0.00" min="0" step="0.5"></div>
-      <div class="field" style="max-width:90px"><label>Cantidad</label><input type="number" id="inp-qty" placeholder="1" min="1" step="1" value="1"></div>
-      <div class="field"><label>Categoría</label><input type="text" id="inp-cat" placeholder="Ej: Extra, Despensa…" list="cat-dl-lista"><datalist id="cat-dl-lista"></datalist></div>
-      <div class="field"><label>Tienda</label><select id="inp-store" onchange="handleStoreChange(this,'inp')"></select></div>
-    </div>
-    <div id="inp-custom-store-wrap" style="display:none" class="field">
-      <label>Nueva tienda</label>
-      <div style="display:flex;gap:8px"><input type="text" id="inp-custom-store" placeholder="Ej: Chedraui, HEB…" style="flex:1"><button class="btn btn-green btn-sm" onclick="saveCustomStore('inp')">Guardar</button></div>
-    </div>
-    <button class="btn btn-primary full" style="margin-top:.5rem" onclick="addItem()">¡Agregar! 🛍️</button>
+  <!-- Sub-tabs inside Lista -->
+  <div style="display:flex;gap:4px;margin-bottom:1rem;background:var(--surface2);border-radius:var(--radius);padding:4px">
+    <button id="lt-lista" onclick="setLTab('lista')" style="flex:1;padding:7px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer">🛒 Lista de compras</button>
+    <button id="lt-pend" onclick="setLTab('pend')" style="flex:1;padding:7px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-family:inherit;font-size:12px;font-weight:800;cursor:pointer">🔖 Pendientes <span id="pend-badge" style="background:var(--amber);color:#fff;border-radius:20px;padding:1px 7px;font-size:10px">0</span></button>
   </div>
-  <div class="card">
-    <div class="filter-strip" id="fstrip-lista"></div>
-    <div class="filter-strip" id="fstrip-cats"></div>
-    <div class="sort-bar">
-      <span class="sort-lbl">Ordenar:</span>
-      <button class="sbtn active" id="ls-manual" onclick="setLS('manual')">✋ Manual</button>
-      <button class="sbtn" id="ls-az" onclick="setLS('az')">A→Z</button>
-      <button class="sbtn" id="ls-price" onclick="setLS('price')">💰 Precio</button>
-      <button class="sbtn" id="ls-store" onclick="setLS('store')">🏪 Tienda</button>
+
+  <!-- LISTA sub-panel -->
+  <div id="lpanel-lista">
+    <div class="card">
+      <div class="card-title">➕ Agregar artículo</div>
+      <div class="field">
+        <label>Nombre</label>
+        <input type="text" id="inp-name" placeholder="¿Qué vas a comprar?" autocomplete="off" list="sugg-list-dl" oninput="showSugg(this.value);autoDetectCat(this.value)" onkeydown="if(event.key==='Enter')addItem()">
+        <datalist id="sugg-list-dl"></datalist>
+      </div>
+      <div class="row">
+        <div class="field"><label>Precio unitario</label><input type="number" id="inp-price" placeholder="0.00" min="0" step="0.5"></div>
+        <div class="field" style="max-width:90px"><label>Cantidad</label><input type="number" id="inp-qty" placeholder="1" min="1" step="1" value="1"></div>
+        <div class="field"><label>Categoría</label><input type="text" id="inp-cat" placeholder="Ej: Despensa, Extra…" list="cat-dl-lista"><datalist id="cat-dl-lista"></datalist></div>
+        <div class="field"><label>Tienda</label><select id="inp-store" onchange="handleStoreChange(this,'inp')"></select></div>
+      </div>
+      <div id="inp-custom-store-wrap" style="display:none" class="field">
+        <label>Nueva tienda</label>
+        <div style="display:flex;gap:8px"><input type="text" id="inp-custom-store" placeholder="Ej: Chedraui, HEB…" style="flex:1"><button class="btn btn-green btn-sm" onclick="saveCustomStore('inp')">Guardar</button></div>
+      </div>
+      <button class="btn btn-primary full" style="margin-top:.5rem" onclick="addItem()">¡Agregar! 🛍️</button>
     </div>
-    <div id="item-list"></div>
-    <div class="total-bar"><span style="font-size:12px;font-weight:700;color:var(--muted)">Total del carrito 🛒</span><span class="total-num" id="total-display">$0.00</span></div>
+    <div class="card">
+      <div class="filter-strip" id="fstrip-lista"></div>
+      <div class="filter-strip" id="fstrip-cats"></div>
+      <div class="sort-bar">
+        <span class="sort-lbl">Ordenar:</span>
+        <button class="sbtn active" id="ls-manual" onclick="setLS('manual')">✋ Manual</button>
+        <button class="sbtn" id="ls-az" onclick="setLS('az')">A→Z</button>
+        <button class="sbtn" id="ls-price" onclick="setLS('price')">💰 Precio</button>
+        <button class="sbtn" id="ls-store" onclick="setLS('store')">🏪 Tienda</button>
+      </div>
+      <div id="item-list"></div>
+      <div class="total-bar"><span style="font-size:12px;font-weight:700;color:var(--muted)">Total del carrito 🛒</span><span class="total-num" id="total-display">$0.00</span></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
+      <button class="btn btn-ghost btn-sm" onclick="clearChecked()">🗑 Quitar marcados</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearAll()">✕ Vaciar</button>
+      <button class="btn btn-green" onclick="saveTrip()" style="margin-left:auto">💾 Guardar compra</button>
+    </div>
   </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
-    <button class="btn btn-ghost btn-sm" onclick="clearChecked()">🗑 Quitar marcados</button>
-    <button class="btn btn-ghost btn-sm" onclick="clearAll()">✕ Vaciar</button>
-    <button class="btn btn-green" onclick="saveTrip()" style="margin-left:auto">💾 Guardar compra</button>
+
+  <!-- PENDIENTES sub-panel -->
+  <div id="lpanel-pend" style="display:none">
+    <div class="card" style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border-color:#FCD34D">
+      <div class="card-title" style="color:#92400E">🔖 Lista de pendientes</div>
+      <p style="font-size:12px;color:#92400E;margin-bottom:.75rem;font-weight:600">Al asignar tienda y precio se mueve a la lista principal.</p>
+      <div class="field"><label>Artículo</label>
+        <input type="text" id="pend-name" placeholder="¿Qué necesitas?" list="sugg-pend-dl" oninput="showSuggPend(this.value)" onkeydown="if(event.key==='Enter')addPending()">
+        <datalist id="sugg-pend-dl"></datalist>
+      </div>
+      <div class="field"><label>Nota / Categoría</label><input type="text" id="pend-note" placeholder="Marca, cantidad, categoría…" list="cat-dl-pend"><datalist id="cat-dl-pend"></datalist></div>
+      <div class="row">
+        <div class="field"><label>Precio aprox.</label><input type="number" id="pend-price" placeholder="0.00" min="0" step="0.5"></div>
+        <div class="field" style="max-width:90px"><label>Cantidad</label><input type="number" id="pend-qty" placeholder="1" min="1" step="1" value="1"></div>
+      </div>
+      <div class="sort-bar" style="margin-top:.5rem">
+        <span class="sort-lbl">Ordenar:</span>
+        <button class="sbtn active" id="ps-manual" onclick="setPS('manual')">✋ Manual</button>
+        <button class="sbtn" id="ps-az" onclick="setPS('az')">A→Z</button>
+      </div>
+      <div class="filter-strip" id="fstrip-pend-cats"></div>
+      <button class="btn full" style="background:#D97706;color:#fff;border:none;margin-top:.5rem" onclick="addPending()">+ Agregar 📌</button>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <span class="card-title" style="margin:0">📌 Por comprar</span>
+      </div>
+      <div id="pending-list"></div>
+    </div>
   </div>
 </div>
 
-<!-- ═══ PENDIENTES ═══ -->
-<div id="sec-pendientes" class="section">
-  <div class="card" style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border-color:#FCD34D">
-    <div class="card-title" style="color:#92400E">🔖 Lista de pendientes</div>
-    <p style="font-size:12px;color:#92400E;margin-bottom:.75rem;font-weight:600">Al asignar tienda y precio se mueve a la lista principal automáticamente.</p>
-    <div class="field"><label>Artículo</label>
-      <input type="text" id="pend-name" placeholder="¿Qué necesitas?" list="sugg-pend-dl" oninput="showSuggPend(this.value)" onkeydown="if(event.key==='Enter')addPending()">
-      <datalist id="sugg-pend-dl"></datalist>
-    </div>
-    <div class="field"><label>Nota / Categoría</label><input type="text" id="pend-note" placeholder="Marca, cantidad, categoría…" list="cat-dl-pend"><datalist id="cat-dl-pend"></datalist></div>
-    <div class="row">
-      <div class="field"><label>Precio unitario (aprox.)</label><input type="number" id="pend-price" placeholder="0.00" min="0" step="0.5"></div>
-      <div class="field" style="max-width:90px"><label>Cantidad</label><input type="number" id="pend-qty" placeholder="1" min="1" step="1" value="1"></div>
-    </div>
-    <div class="sort-bar" style="margin-top:.5rem">
-      <span class="sort-lbl">Ordenar:</span>
-      <button class="sbtn active" id="ps-manual" onclick="setPS('manual')">✋ Manual</button>
-      <button class="sbtn" id="ps-az" onclick="setPS('az')">A→Z</button>
-    </div>
-    <div class="filter-strip" id="fstrip-pend-cats"></div>
-    <button class="btn full" style="background:#D97706;color:#fff;border:none" onclick="addPending()">+ Agregar 📌</button>
-  </div>
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
-      <span class="card-title" style="margin:0">📌 Por comprar</span>
-      <span id="pend-badge" class="badge-cnt">0</span>
-    </div>
-    <div id="pending-list"></div>
-  </div>
-</div>
-
-<!-- ═══ HISTORIAL ═══ -->
+<!-- ═══ HISTORIAL + MENSUAL + RESUMEN ═══ -->
 <div id="sec-historial" class="section">
-  <div class="card" style="padding:.625rem .875rem">
-    <div class="filter-strip" id="fstrip-hist" style="margin:0"></div>
-  </div>
-  <div class="import-area">
-    <div class="card-title" style="color:#4A31A0">📥 Agregar compra pasada</div>
-    <div class="row">
-      <div class="field"><label>Fecha</label><input type="date" id="imp-date" style="background:#fff"></div>
-      <div class="field"><label>Tienda</label><select id="imp-store" onchange="handleStoreChange(this,'imp')"></select></div>
-    </div>
-    <div id="imp-custom-store-wrap" style="display:none" class="field">
-      <label>Nueva tienda</label>
-      <div style="display:flex;gap:8px"><input type="text" id="imp-custom-store" placeholder="Nombre" style="flex:1"><button class="btn btn-green btn-sm" onclick="saveCustomStore('imp')">Guardar</button></div>
-    </div>
-    <div class="field"><label>Artículos (Nombre, Precio — uno por línea)</label><textarea id="imp-items" rows="4" placeholder="Azúcar, 43&#10;Leche, 25&#10;Café, 222" style="resize:vertical"></textarea></div>
-    <button class="btn btn-primary full" onclick="importTrip()">📥 Importar</button>
-  </div>
-  <div id="history-container"></div>
-</div>
-
-<!-- ═══ MENSUAL ═══ -->
-<div id="sec-mensual" class="section">
-  <div id="month-tabs-row" class="month-tabs"></div>
-  <div id="month-content"></div>
-</div>
-
-<!-- ═══ RESUMEN ═══ -->
-<div id="sec-resumen" class="section">
-  <div class="stat-grid">
+  <!-- Stats summary bar -->
+  <div class="stat-grid" style="margin-bottom:1rem">
     <div class="stat"><div class="stat-val" id="s-trips">0</div><div class="stat-lbl">Compras</div></div>
     <div class="stat"><div class="stat-val" id="s-total">$0</div><div class="stat-lbl">Gastado</div></div>
     <div class="stat"><div class="stat-val" id="s-avg">$0</div><div class="stat-lbl">Promedio</div></div>
     <div class="stat"><div class="stat-val" id="s-items">0</div><div class="stat-lbl">Artículos únicos</div></div>
   </div>
-  <div class="card"><div class="card-title">🏪 Gasto por tienda</div><div id="store-breakdown"></div></div>
-  <div class="card"><div class="card-title">🔁 Más frecuentes</div><div id="frequent-items"></div></div>
+  <!-- Store breakdown -->
+  <div class="card" style="margin-bottom:.75rem">
+    <div class="card-title">🏪 Gasto por tienda</div>
+    <div id="store-breakdown"></div>
+  </div>
+  <!-- Month tabs -->
+  <div id="month-tabs-row" class="month-tabs"></div>
+  <!-- Import past trip -->
+  <div class="import-area" id="import-area-toggle" style="margin-bottom:.75rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="var b=document.getElementById('import-form');b.style.display=b.style.display==='none'?'block':'none'">
+      <div class="card-title" style="color:#4A31A0;margin:0">📥 Agregar compra pasada</div>
+      <span style="color:var(--muted);font-size:18px">▾</span>
+    </div>
+    <div id="import-form" style="display:none;margin-top:.75rem">
+      <div class="row">
+        <div class="field"><label>Fecha</label><input type="date" id="imp-date" style="background:#fff"></div>
+        <div class="field"><label>Tienda</label><select id="imp-store" onchange="handleStoreChange(this,'imp')"></select></div>
+      </div>
+      <div id="imp-custom-store-wrap" style="display:none" class="field">
+        <label>Nueva tienda</label>
+        <div style="display:flex;gap:8px"><input type="text" id="imp-custom-store" placeholder="Nombre" style="flex:1"><button class="btn btn-green btn-sm" onclick="saveCustomStore('imp')">Guardar</button></div>
+      </div>
+      <div class="field"><label>Artículos (Nombre, Precio — uno por línea)</label><textarea id="imp-items" rows="4" placeholder="Azúcar, 43&#10;Leche, 25&#10;Café, 222" style="resize:vertical"></textarea></div>
+      <button class="btn btn-primary full" onclick="importTrip()">📥 Importar</button>
+    </div>
+  </div>
+  <div id="history-container"></div>
 </div>
-
 <!-- ═══ GASTOS (HORMIGAS) ═══ -->
 <div id="sec-gastos" class="section">
   <div class="hg-header">
@@ -626,8 +636,42 @@ const D=doc(db,'misuper','shared');
 function setSS(s){var e=document.getElementById('sync-status');if(!e)return;var m={ok:'🟢 Sincronizado',saving:'🟡 Guardando…',error:'🔴 Error',offline:'⚪ Sin conexión'};e.textContent=m[s]||m.ok;}
 var _t=null;
 window.saveRemote=function(){setSS('saving');clearTimeout(_t);_t=setTimeout(async function(){try{await setDoc(D,{items:window._items,trips:window._trips,pending:window._pending,customStores:window._customStores,updatedAt:Date.now()});setSS('ok');}catch(e){setSS('error');}},600);};
-onSnapshot(D,function(snap){if(!snap.exists())return;var d=snap.data();window._items=d.items||[];window._trips=d.trips||[];window._pending=d.pending||[];window._customStores=d.customStores||[];window._saveLocal();window._updateGrand();var at=['lista','pendientes','historial','mensual','resumen'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});if(at==='lista')window._rl&&window._rl();else if(at==='pendientes')window._rp&&window._rp();else if(at==='historial')window._rh&&window._rh();else if(at==='mensual')window._rm&&window._rm();else if(at==='resumen')window._rr&&window._rr();setSS('ok');},function(){setSS('offline');});
-(async function(){try{var snap=await getDoc(D);if(snap.exists()){var d=snap.data();window._items=d.items||window._items;window._trips=d.trips||window._trips;window._pending=d.pending||window._pending;window._customStores=d.customStores||window._customStores;window._saveLocal();}}catch(e){setSS('offline');}window._rl&&window._rl();window._updateGrand&&window._updateGrand();})();
+onSnapshot(D,function(snap){
+  if(!snap.exists())return;
+  var d=snap.data();
+  if((d.items||[]).length>=(window._items||[]).length) window._items=d.items||[];
+  if((d.trips||[]).length>=(window._trips||[]).length) window._trips=d.trips||[];
+  if((d.pending||[]).length>=(window._pending||[]).length) window._pending=d.pending||[];
+  window._customStores=d.customStores||window._customStores||[];
+  window._saveLocal();
+  window._updateGrand&&window._updateGrand();
+  var at=['lista','pendientes','historial','mensual','resumen'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});
+  if(at==='lista')window._rl&&window._rl();
+  else if(at==='pendientes')window._rp&&window._rp();
+  else if(at==='historial')window._rh&&window._rh();
+  else if(at==='mensual')window._rm&&window._rm();
+  else if(at==='resumen')window._rr&&window._rr();
+  setSS('ok');
+},function(){setSS('offline');});
+(async function(){
+  try{
+    var snap=await getDoc(D);
+    if(snap.exists()){
+      var d=snap.data();
+      if(!(window._items||[]).length||d.updatedAt>(parseInt(localStorage.getItem('super_ts')||0))){
+        window._items=d.items||window._items||[];
+        window._trips=d.trips||window._trips||[];
+        window._pending=d.pending||window._pending||[];
+        window._customStores=d.customStores||window._customStores||[];
+        window._saveLocal();
+        localStorage.setItem('super_ts',d.updatedAt||Date.now());
+      }
+    }else{window.saveRemote();}
+  }catch(e){setSS('offline');}
+  window._rl&&window._rl();
+  window._updateGrand&&window._updateGrand();
+  setSS('ok');
+})();
 </script>
 
 <script>
@@ -662,12 +706,48 @@ function showSuggPend(v){var dl=document.getElementById('sugg-pend-dl');if(!dl)r
 function updateCatDLs(){var cats=getAllCats();['cat-dl-lista','cat-dl-pend'].forEach(function(id){var dl=document.getElementById(id);if(dl)dl.innerHTML=cats.map(function(c){return '<option value="'+esc(c)+'">';}).join('');});}
 
 // ── TABS ──
-function showTab(t){['lista','pendientes','historial','mensual','resumen','gastos'].forEach(function(n){document.getElementById('sec-'+n).classList.toggle('active',n===t);document.getElementById('t-'+n).classList.toggle('active',n===t);});if(t==='lista'){buildSel('inp-store');renderList();}else if(t==='pendientes')renderPending();else if(t==='historial'){buildSel('imp-store');buildHistFilter();renderHistory();}else if(t==='mensual')renderMensual();else if(t==='resumen')renderStats();else if(t==='gastos')hgRenderGastos();}
+var _lTab='lista'; // sub-tab inside Lista
+function setLTab(t){
+  _lTab=t;
+  document.getElementById('lpanel-lista').style.display=t==='lista'?'block':'none';
+  document.getElementById('lpanel-pend').style.display=t==='pend'?'block':'none';
+  var lb=document.getElementById('lt-lista');var pb=document.getElementById('lt-pend');
+  if(lb){lb.style.background=t==='lista'?'var(--primary)':'transparent';lb.style.color=t==='lista'?'#fff':'var(--muted)';}
+  if(pb){pb.style.background=t==='pend'?'var(--amber)':'transparent';pb.style.color=t==='pend'?'#fff':'var(--muted)';}
+  if(t==='pend') renderPending();
+  if(t==='lista') renderList();
+}
+function showTab(t){
+  ['lista','historial','gastos'].forEach(function(n){
+    document.getElementById('sec-'+n).classList.toggle('active',n===t);
+    document.getElementById('t-'+n).classList.toggle('active',n===t);
+  });
+  if(t==='lista'){buildSel('inp-store');renderList();}
+  else if(t==='historial'){buildSel('imp-store');renderHistory();}
+  else if(t==='gastos')hgRenderGastos();
+}
+
+// Auto-detect category from product name
+var PERISHABLES=['leche','yogur','yogurt','queso','crema','mantequilla','huevo','huevos','pollo','carne','res','puerco','cerdo','pescado','atún','atun','jamón','jamon','salchicha','chorizo','tocino','naranja','manzana','platano','plátano','pera','uva','mango','papaya','fresa','limón','limon','jitomate','tomate','lechuga','espinaca','zanahoria','cebolla','papa','papas','chile','aguacate','brócoli','brocoli','coliflor','chayote','calabaza','elote','ejote','nopal','verdura','fruta','pan','tortilla','tortillas'];
+var DRY_GOODS=['arroz','frijol','frijoles','azúcar','azucar','sal','aceite','harina','pasta','sopa','avena','café','cafe','té','te','galleta','galletas','cereal','atún','maicena','lenteja','lentejas','garbanzo','garbanzos'];
+var CLEANING=['jabón','jabon','detergente','cloro','suavizante','esponja','escoba','trapeador','papel','servilleta','toalla','pañal','pañales'];
+function autoDetectCat(name){
+  var n=name.trim().toLowerCase();
+  if(!n) return;
+  var catInp=document.getElementById('inp-cat');
+  if(catInp&&catInp.value) return; // don't overwrite
+  var cat='';
+  if(PERISHABLES.some(function(p){return n.indexOf(p)>=0;})) cat='Despensa';
+  else if(DRY_GOODS.some(function(p){return n.indexOf(p)>=0;})) cat='Despensa';
+  else if(CLEANING.some(function(p){return n.indexOf(p)>=0;})) cat='Limpieza';
+  if(cat&&catInp) catInp.value=cat;
+}
+
 window._rl=function(){if(document.getElementById('sec-lista').classList.contains('active'))renderList();};
-window._rp=function(){if(document.getElementById('sec-pendientes').classList.contains('active'))renderPending();};
+window._rp=function(){if(_lTab==='pend')renderPending();};
 window._rh=function(){if(document.getElementById('sec-historial').classList.contains('active'))renderHistory();};
-window._rm=function(){if(document.getElementById('sec-mensual').classList.contains('active'))renderMensual();};
-window._rr=function(){if(document.getElementById('sec-resumen').classList.contains('active'))renderStats();};
+
+
 
 // ── LISTA ──
 function setLS(s){_lSort=s;document.querySelectorAll('[id^=ls-]').forEach(function(b){b.classList.toggle('active',b.id==='ls-'+s);});renderList();}
@@ -780,38 +860,116 @@ function openAssign(idx){_assignIdx=idx;var it=(window._pending||[])[idx];docume
 function closeModal(id){document.getElementById(id).classList.remove('open');_assignIdx=-1;}
 function confirmAssign(){if(_assignIdx<0)return;var se=document.getElementById('modal-store');var st=se.value==='__new__'?'':se.value;var pr=document.getElementById('modal-price').value;if(!st){toast('Selecciona una tienda');return;}var it=(window._pending||[])[_assignIdx];(window._items=window._items||[]).push({name:it.name,price:pr||it.price||'',qty:Number(it.qty)||1,store:st,category:it.note||'',checked:false,id:Date.now()});(window._pending||[]).splice(_assignIdx,1);save();document.getElementById('assign-modal').classList.remove('open');_assignIdx=-1;renderPending();toast('"'+it.name+'" movido a la lista 🚀');showTab('lista');}
 
-// ── HISTORIAL ──
-function buildHistFilter(){var el=document.getElementById('fstrip-hist');if(!el)return;var stores=[...new Set((window._trips||[]).flatMap(function(t){return(t.items||[]).map(function(i){return i.store;}).filter(Boolean);}))];el.innerHTML='<button class="fbtn'+(_histFilter===''?' active':'')+'" onclick="setHF(this,\'\')">Todas</button>'+stores.map(function(s){return '<button class="fbtn'+(_histFilter===s?' active':'')+'" onclick="setHF(this,\''+esc(s)+'\')">'+esc(s)+'</button>';}).join('');}
-function setHF(btn,v){_histFilter=v;document.querySelectorAll('#fstrip-hist .fbtn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');renderHistory();}
+// ── HISTORIAL + MENSUAL + RESUMEN (merged) ──
 function renderHistory(){
-  buildHistFilter();
+  buildSel('imp-store');
+  var trips=window._trips||[];
+
+  // Stats
+  document.getElementById('s-trips').textContent=trips.length;
+  var total=trips.reduce(function(s,t){return s+Number(t.total);},0);
+  document.getElementById('s-total').textContent='$'+Math.round(total).toLocaleString('es-MX');
+  document.getElementById('s-avg').textContent=trips.length?'$'+Math.round(total/trips.length).toLocaleString('es-MX'):'$0';
+  var allI=trips.flatMap(function(t){return t.items||[];});
+  document.getElementById('s-items').textContent=new Set(allI.map(function(i){return i.name.toLowerCase();})).size;
+  // Store breakdown
+  var sm={};allI.forEach(function(i){if(i.price&&i.store)sm[i.store]=(sm[i.store]||0)+Number(i.price)*Number(i.qty||1);});
+  var se=Object.entries(sm).sort(function(a,b){return b[1]-a[1];});var mx=se.length?se[0][1]:1;
+  document.getElementById('store-breakdown').innerHTML=se.length?se.map(function(e){return '<div class="store-row">'+pillHtml(e[0])+'<div class="bar-bg"><div class="bar-fill" style="width:'+Math.round(e[1]/mx*100)+'%"></div></div><span style="font-weight:800;min-width:70px;text-align:right">$'+Number(e[1]).toFixed(2)+'</span></div>';}).join(''):'<div class="empty">Sin datos aún</div>';
+
+  // Group trips by month
+  var mmap={};
+  trips.forEach(function(t){
+    var k=t.dateKey||(new Date().getFullYear()+'-'+(new Date().getMonth()+1));
+    if(!mmap[k])mmap[k]=[];
+    mmap[k].push(t);
+  });
+  var keys=Object.keys(mmap).sort().reverse();
+
+  // Month tabs - DOM approach to avoid quote escaping issues
+  var tabsEl=document.getElementById('month-tabs-row');
+  if(!_activeMonth||keys.indexOf(_activeMonth)<0)_activeMonth=keys[0]||'';
+  if(tabsEl){
+    tabsEl.innerHTML='';
+    keys.forEach(function(k){
+      var p=k.split('-');var mo=parseInt(p[1])-1;
+      var btn=document.createElement('button');
+      btn.className='mtab'+(k===_activeMonth?' active':'');
+      btn.textContent=MONTHS_ES[mo]+' '+p[0];
+      btn.onclick=(function(key){return function(){setAM(key);};})(k);
+      tabsEl.appendChild(btn);
+    });
+  }
+
   var el=document.getElementById('history-container');
-  var shown=_histFilter?(window._trips||[]).map(function(t){var fi=(t.items||[]).filter(function(i){return i.store===_histFilter;});if(!fi.length)return null;var ft=fi.filter(function(i){return i.price;}).reduce(function(s,i){return s+Number(i.price)*Number(i.qty||1);},0);return Object.assign({},t,{items:fi,total:ft.toFixed(2)});}).filter(Boolean):(window._trips||[]);
-  if(!shown.length){el.innerHTML='<div class="empty">Sin compras guardadas</div>';return;}
-  el.innerHTML=shown.map(function(t){
-    var ri=(window._trips||[]).findIndex(function(x){return x.id===t.id;});
-    var stores=[...new Set((t.items||[]).map(function(i){return i.store;}).filter(Boolean))];
-    return '<div class="trip-card">'
-      +'<div class="trip-header" onclick="toggleTrip(\'th-'+t.id+'\')">'
-        +'<div><div style="font-size:13px;font-weight:800">'+t.date+'</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;font-size:11px">'+t.items.length+' art. '+stores.map(pillHtml).join('')+'</div></div>'
-        +'<div style="display:flex;align-items:center;gap:8px"><span class="trip-total">$'+Number(t.total).toFixed(2)+'</span><button class="btn btn-danger btn-sm" onclick="delTrip(event,'+ri+')">🗑</button><span class="chevron" id="chv-th-'+t.id+'">⌄</span></div>'
+  if(!el) return;
+  if(!keys.length){el.innerHTML='<div class="empty">Sin compras guardadas aún</div>';return;}
+
+  // Render selected month
+  var monthTrips=mmap[_activeMonth]||[];
+  var p=(_activeMonth||'').split('-');
+  var mo2=parseInt(p[1])-1;
+  var label=(!isNaN(mo2)&&mo2>=0)?MONTHS_ES[mo2]+' '+p[0]:'—';
+  var mTotal=monthTrips.reduce(function(s,t){return s+Number(t.total);},0);
+  var mStores={};monthTrips.forEach(function(t){(t.items||[]).forEach(function(i){if(i.price&&i.store)mStores[i.store]=(mStores[i.store]||0)+Number(i.price)*Number(i.qty||1);});});
+
+  // Group by store within month
+  var storeGroups={};
+  monthTrips.forEach(function(t){
+    var s=t.items&&t.items[0]&&t.items[0].store||'Sin tienda';
+    // Use predominant store
+    var sc={};(t.items||[]).forEach(function(i){if(i.store)sc[i.store]=(sc[i.store]||0)+1;});
+    var mainStore=Object.entries(sc).sort(function(a,b){return b[1]-a[1];})[0];
+    var sg=mainStore?mainStore[0]:'Sin tienda';
+    if(!storeGroups[sg])storeGroups[sg]=[];
+    storeGroups[sg].push(t);
+  });
+
+  el.innerHTML='<div class="card" style="background:linear-gradient(135deg,var(--primary-light),#fff);border-color:var(--border2);margin-bottom:.875rem">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">'
+      +'<div><div style="font-size:11px;color:var(--primary);font-weight:800;text-transform:uppercase;letter-spacing:.4px">'+label+'</div>'
+        +'<div style="font-size:26px;font-weight:900;letter-spacing:-1px;color:var(--primary);margin-top:2px">$'+mTotal.toFixed(2)+'</div></div>'
+      +'<div style="display:flex;gap:5px;flex-wrap:wrap">'
+        +Object.entries(mStores).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<span class="pill" style="'+pillStyle(e[0])+'">'+esc(e[0])+' $'+Number(e[1]).toFixed(2)+'</span>';}).join('')
       +'</div>'
-      +'<div class="trip-body" id="th-'+t.id+'">'
-        +(t.items||[]).map(function(it){var qty=Number(it.qty||1);var stOpts=allStores().map(function(s){return '<option value="'+esc(s)+'"'+(it.store===s?' selected':'')+'>'+esc(s)+'</option>';}).join('');var eid='eh-'+t.id+'-'+(t.items||[]).indexOf(it);return '<div class="item-row"><div style="flex:1;min-width:0"><div class="item-name">'+esc(it.name)+(qty>1?' ×'+qty:'')+'</div><div style="margin-top:2px">'+(it.store?pillHtml(it.store):'')+'</div></div><span class="item-price">'+(it.price?'$'+Number(it.price).toFixed(2):'—')+(qty>1?' = $'+(Number(it.price)*qty).toFixed(2):'')+'</span></div>';}).join('')
-      +'</div></div>';
+    +'</div>'
+  +'</div>'
+  // Trips grouped by store
+  +Object.entries(storeGroups).map(function(sg){
+    var sgName=sg[0], sgTrips=sg[1];
+    var sgTotal=sgTrips.reduce(function(s,t){return s+Number(t.total);},0);
+    return '<div style="margin-bottom:1rem">'
+      +'<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">'
+        +pillHtml(sgName)
+        +'<span style="font-size:13px;font-weight:800;color:var(--primary)">$'+sgTotal.toFixed(2)+'</span>'
+        +'<span style="font-size:11px;color:var(--muted)">'+sgTrips.length+' compra'+(sgTrips.length!==1?'s':'')+'</span>'
+      +'</div>'
+      +sgTrips.map(function(t){
+        var ri=(window._trips||[]).findIndex(function(x){return x.id===t.id;});
+        return '<div class="trip-card">'
+          +'<div class="trip-header" onclick="toggleTrip(\'th-'+t.id+'\')">'+ ''
+            +'<div><div style="font-size:13px;font-weight:800">'+t.date+'</div>'
+              +'<div style="margin-top:3px;font-size:11px;color:var(--muted)">'+t.items.length+' artículos</div>'
+            +'</div>'
+            +'<div style="display:flex;align-items:center;gap:8px">'
+              +'<span class="trip-total">$'+Number(t.total).toFixed(2)+'</span>'
+              +'<button class="btn btn-danger btn-sm" onclick="delTrip(event,'+ri+')">🗑</button>'
+              +'<span class="chevron" id="chv-th-'+t.id+'">⌄</span>'
+            +'</div>'
+          +'</div>'
+          +'<div class="trip-body" id="th-'+t.id+'">'
+            +(t.items||[]).map(function(it){var qty=Number(it.qty||1);return '<div class="item-row"><div style="flex:1"><div class="item-name">'+esc(it.name)+(qty>1?' ×'+qty:'')+'</div>'+(it.category?'<span style="font-size:10px;color:var(--muted)">🏷️ '+esc(it.category)+'</span>':'')+'</div><span class="item-price">'+(it.price?'$'+Number(it.price).toFixed(2):'—')+(qty>1?' = $'+(Number(it.price)*qty).toFixed(2):'')+'</span></div>';}).join('')
+          +'</div>'
+        +'</div>';
+      }).join('')
+    +'</div>';
   }).join('');
 }
-function toggleTrip(id){var b=document.getElementById(id);var c=document.getElementById('chv-'+id);var open=b.style.display==='block';b.style.display=open?'none':'block';if(c)c.classList.toggle('open',!open);}
+function setAM(k){_activeMonth=k;renderHistory();}
+function toggleTrip(id){var b=document.getElementById(id);var cv=document.getElementById('chv-'+id);var open=b.style.display==='block';b.style.display=open?'none':'block';if(cv)cv.classList.toggle('open',!open);}
 function delTrip(e,idx){e.stopPropagation();if(!confirm('¿Eliminar esta compra?'))return;(window._trips||[]).splice(idx,1);save();renderHistory();toast('Compra eliminada 🗑');}
 function importTrip(){var dv=document.getElementById('imp-date').value;if(!dv){toast('Selecciona la fecha');return;}var se=document.getElementById('imp-store');var st=se.value==='__new__'?'':se.value;if(!st){toast('Selecciona una tienda');return;}var raw=document.getElementById('imp-items').value.trim();if(!raw){toast('Agrega artículos');return;}var lines=raw.split('\n').filter(Boolean);var pi=lines.map(function(l){var p=l.split(',');return{name:(p[0]||'').trim(),price:(p[1]||'').trim().replace(/[^0-9.]/g,''),qty:1,store:st,checked:false,id:Date.now()+Math.random()};}).filter(function(i){return i.name;});if(!pi.length){toast('No se pudo leer ningún artículo');return;}var d=new Date(dv+'T12:00:00');var dk=d.getFullYear()+'-'+(d.getMonth()+1);var ds=d.toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});var tot=pi.filter(function(i){return i.price;}).reduce(function(s,i){return s+Number(i.price);},0);(window._trips=window._trips||[]).push({date:ds,dateKey:dk,total:tot.toFixed(2),items:pi,id:Date.now()});(window._trips||[]).sort(function(a,b){return b.id-a.id;});save();document.getElementById('imp-items').value='';document.getElementById('imp-date').value='';renderHistory();toast('✅ '+pi.length+' artículos importados!');}
 
-// ── MENSUAL ──
-function renderMensual(){var mmap={};(window._trips||[]).forEach(function(t){var k=t.dateKey||(new Date().getFullYear()+'-'+(new Date().getMonth()+1));if(!mmap[k])mmap[k]=[];mmap[k].push(t);});var keys=Object.keys(mmap).sort().reverse();if(!keys.length){document.getElementById('month-tabs-row').innerHTML='';document.getElementById('month-content').innerHTML='<div class="empty">Sin compras aún</div>';return;}if(!_activeMonth||keys.indexOf(_activeMonth)<0)_activeMonth=keys[0];document.getElementById('month-tabs-row').innerHTML=keys.map(function(k){var p=k.split('-');var mo=parseInt(p[1])-1;return '<button class="mtab'+(_activeMonth===k?' active':'')+'" onclick="setAM(\''+k+'\')">'+MONTHS_ES[mo]+' '+p[0]+'</button>';}).join('');renderMonthContent(mmap[_activeMonth]||[],_activeMonth);}
-function setAM(k){_activeMonth=k;renderMensual();}
-function renderMonthContent(mTrips,k){var p=k.split('-');var mo=parseInt(p[1])-1;var label=MONTHS_ES[mo]+' '+p[0];var total=mTrips.reduce(function(s,t){return s+Number(t.total);},0);var sm={};mTrips.forEach(function(t){(t.items||[]).forEach(function(i){if(i.price&&i.store)sm[i.store]=(sm[i.store]||0)+Number(i.price)*Number(i.qty||1);});});var el=document.getElementById('month-content');el.innerHTML='<div class="card" style="background:linear-gradient(135deg,#FCE4EC,#F8BBD0);border-color:#F48FB1;margin-bottom:1rem"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:11px;color:#880E4F;font-weight:800;text-transform:uppercase;letter-spacing:.4px">'+label+'</div><div style="font-size:26px;font-weight:900;letter-spacing:-1px;color:#880E4F;margin-top:2px">$'+total.toFixed(2)+'</div></div><div style="text-align:right"><div style="font-size:24px;font-weight:900;color:#880E4F">'+mTrips.length+'</div><div style="font-size:10px;color:#AD1457;font-weight:700;text-transform:uppercase">compra'+(mTrips.length!==1?'s':'')+'</div></div></div>'+(Object.keys(sm).length?'<div class="divider" style="background:#F48FB1"></div><div style="display:flex;gap:5px;flex-wrap:wrap">'+Object.entries(sm).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<span class="pill" style="'+pillStyle(e[0])+'">'+esc(e[0])+' $'+Number(e[1]).toFixed(2)+'</span>';}).join('')+'</div>':'')+'</div>'+mTrips.map(function(t){var ri=(window._trips||[]).findIndex(function(x){return x.id===t.id;});var stores=[...new Set((t.items||[]).map(function(i){return i.store;}).filter(Boolean))];return '<div class="trip-card"><div class="trip-header" onclick="toggleTrip(\'tm-'+t.id+'\')"><div><div style="font-size:13px;font-weight:800">'+t.date+'</div><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;font-size:11px">'+t.items.length+' art. '+stores.map(pillHtml).join('')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span class="trip-total">$'+Number(t.total).toFixed(2)+'</span><button class="btn btn-danger btn-sm" onclick="delTrip(event,'+ri+')">🗑</button><span class="chevron" id="chv-tm-'+t.id+'">⌄</span></div></div><div class="trip-body" id="tm-'+t.id+'">'+(t.items||[]).map(function(it){var qty=Number(it.qty||1);return '<div class="item-row"><div class="item-name">'+esc(it.name)+(qty>1?' ×'+qty:'')+'</div>'+(it.store?pillHtml(it.store):'')+' <span class="item-price">'+(it.price?'$'+Number(it.price).toFixed(2):'—')+'</span></div>';}).join('')+'</div></div>';}).join('');}
-
-// ── RESUMEN ──
-function renderStats(){document.getElementById('s-trips').textContent=(window._trips||[]).length;var total=(window._trips||[]).reduce(function(s,t){return s+Number(t.total);},0);document.getElementById('s-total').textContent='$'+Math.round(total).toLocaleString('es-MX');document.getElementById('s-avg').textContent=(window._trips||[]).length?'$'+Math.round(total/(window._trips||[]).length).toLocaleString('es-MX'):'$0';var allI=(window._trips||[]).flatMap(function(t){return t.items||[];});document.getElementById('s-items').textContent=new Set(allI.map(function(i){return i.name.toLowerCase();})).size;var sm={};allI.forEach(function(i){if(i.price&&i.store)sm[i.store]=(sm[i.store]||0)+Number(i.price)*Number(i.qty||1);});var se=Object.entries(sm).sort(function(a,b){return b[1]-a[1];});var mx=se.length?se[0][1]:1;document.getElementById('store-breakdown').innerHTML=se.length?se.map(function(e){return '<div class="store-row">'+pillHtml(e[0])+'<div class="bar-bg"><div class="bar-fill" style="width:'+Math.round(e[1]/mx*100)+'%"></div></div><span style="font-size:14px;font-weight:800;min-width:70px;text-align:right">$'+Number(e[1]).toFixed(2)+'</span></div>';}).join(''):'<div class="empty">Sin datos</div>';var freq={};allI.forEach(function(i){var k=i.name.toLowerCase();freq[k]=(freq[k]||0)+1;});var fs=Object.entries(freq).sort(function(a,b){return b[1]-a[1];}).slice(0,10);document.getElementById('frequent-items').innerHTML=fs.length?fs.map(function(e){return '<div class="freq-row"><span style="font-size:13px;font-weight:600">'+e[0].charAt(0).toUpperCase()+e[0].slice(1)+'</span><span class="badge-cnt">'+e[1]+'×</span></div>';}).join(''):'<div class="empty">Sin datos</div>';}
 
 // ── GRAND TOTAL ──
 window._updateGrand=function(){var t=(window._trips||[]).reduce(function(s,t){return s+Number(t.total||0);},0);var el=document.getElementById('grand-total-display');if(el)el.textContent='$'+t.toFixed(2);};
