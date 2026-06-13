@@ -663,32 +663,48 @@ onSnapshot(D,function(snap){
   if((d.trips||[]).length>=(window._trips||[]).length) window._trips=d.trips||[];
   if((d.pending||[]).length>=(window._pending||[]).length) window._pending=d.pending||[];
   window._customStores=d.customStores||window._customStores||[];
-  window._customStores=d.customStores||window._customStores||[];
-  // Sync HG keys
-  var hgKeys=['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'];
-  hgKeys.forEach(function(k){if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,d[k]);});
+  // Sync ALL HG keys from Firebase to localStorage
+  ['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'].forEach(function(k){
+    if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,String(d[k]));
+  });
+  window._saveLocal();
   window._updateGrand&&window._updateGrand();
-  var at=['lista','pendientes','historial','mensual','resumen'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});
-  var at=['lista','historial','gastos'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});
-  if(at==='lista')window._rl&&window._rl();
-  else if(at==='historial')window._rh&&window._rh();
-  else if(at==='gastos'&&typeof hgRenderGastos!=='undefined')hgRenderGastos();
+  // Re-render active tab
+  var active=['lista','historial','gastos'].find(function(t){
+    var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');
+  });
+  if(active==='lista')window._rl&&window._rl();
+  else if(active==='historial')window._rh&&window._rh();
+  else if(active==='gastos'){
+    // Re-render whatever HG sub-panel is showing
+    var hgActive=['gastos','deudas','auto'].find(function(p){
+      var el=document.getElementById('hg-panel-'+p);return el&&el.style.display!=='none';
+    });
+    if(hgActive==='auto'&&typeof window.hgRenderAuto!=='undefined')window.hgRenderAuto();
+    else if(hgActive==='deudas'&&typeof window.hgRenderDeudas!=='undefined')window.hgRenderDeudas();
+    else if(typeof window.hgRenderGastos!=='undefined')window.hgRenderGastos();
+  }
+  setSS('ok');
 },function(){setSS('offline');});
 (async function(){
   try{
     var snap=await getDoc(D);
     if(snap.exists()){
       var d=snap.data();
-      if(!(window._items||[]).length||d.updatedAt>(parseInt(localStorage.getItem('super_ts')||0))){
+      var remoteTs=d.updatedAt||0;
+      var localTs=parseInt(localStorage.getItem('super_ts')||0);
+      // Always sync HG keys regardless of timestamp
+      ['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'].forEach(function(k){
+        if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,String(d[k]));
+      });
+      // Sync list data if remote is newer or local is empty
+      if(!(window._items||[]).length||remoteTs>localTs){
         window._items=d.items||window._items||[];
         window._trips=d.trips||window._trips||[];
         window._pending=d.pending||window._pending||[];
         window._customStores=d.customStores||window._customStores||[];
-        window._customStores=d.customStores||window._customStores||[];
-        // Sync HG keys from remote
-        var hgKeys2=['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'];
-        hgKeys2.forEach(function(k){if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,d[k]);});
-        localStorage.setItem('super_ts',d.updatedAt||Date.now());
+        window._saveLocal();
+        localStorage.setItem('super_ts',remoteTs||Date.now());
       }
     }else{window.saveRemote();}
   }catch(e){setSS('offline');}
