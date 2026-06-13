@@ -635,7 +635,27 @@ const db=getFirestore(app);
 const D=doc(db,'misuper','shared');
 function setSS(s){var e=document.getElementById('sync-status');if(!e)return;var m={ok:'🟢 Sincronizado',saving:'🟡 Guardando…',error:'🔴 Error',offline:'⚪ Sin conexión'};e.textContent=m[s]||m.ok;}
 var _t=null;
-window.saveRemote=function(){setSS('saving');clearTimeout(_t);_t=setTimeout(async function(){try{await setDoc(D,{items:window._items,trips:window._trips,pending:window._pending,customStores:window._customStores,updatedAt:Date.now()});setSS('ok');}catch(e){setSS('error');}},600);};
+window.saveRemote=function(){
+  setSS('saving');clearTimeout(_t);
+  _t=setTimeout(async function(){
+    try{
+      await setDoc(D,{
+        items:window._items,
+        trips:window._trips,
+        pending:window._pending,
+        customStores:window._customStores,
+        hg_auto_pay:localStorage.getItem('hg_auto_pay')||'{}',
+        hg_deudas:localStorage.getItem('hg_deudas')||'[]',
+        hg_prestamos:localStorage.getItem('hg_prestamos')||'[]',
+        hg_months:localStorage.getItem('hg_months')||'{}',
+        hg_msi_abono:localStorage.getItem('hg_msi_abono')||'0',
+        hg_seguro:localStorage.getItem('hg_seguro')||'false',
+        updatedAt:Date.now()
+      });
+      setSS('ok');
+    }catch(e){setSS('error');}
+  },600);
+};
 onSnapshot(D,function(snap){
   if(!snap.exists())return;
   var d=snap.data();
@@ -643,15 +663,16 @@ onSnapshot(D,function(snap){
   if((d.trips||[]).length>=(window._trips||[]).length) window._trips=d.trips||[];
   if((d.pending||[]).length>=(window._pending||[]).length) window._pending=d.pending||[];
   window._customStores=d.customStores||window._customStores||[];
-  window._saveLocal();
+  window._customStores=d.customStores||window._customStores||[];
+  // Sync HG keys
+  var hgKeys=['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'];
+  hgKeys.forEach(function(k){if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,d[k]);});
   window._updateGrand&&window._updateGrand();
   var at=['lista','pendientes','historial','mensual','resumen'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});
+  var at=['lista','historial','gastos'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});
   if(at==='lista')window._rl&&window._rl();
-  else if(at==='pendientes')window._rp&&window._rp();
   else if(at==='historial')window._rh&&window._rh();
-  else if(at==='mensual')window._rm&&window._rm();
-  else if(at==='resumen')window._rr&&window._rr();
-  setSS('ok');
+  else if(at==='gastos'&&typeof hgRenderGastos!=='undefined')hgRenderGastos();
 },function(){setSS('offline');});
 (async function(){
   try{
@@ -663,7 +684,10 @@ onSnapshot(D,function(snap){
         window._trips=d.trips||window._trips||[];
         window._pending=d.pending||window._pending||[];
         window._customStores=d.customStores||window._customStores||[];
-        window._saveLocal();
+        window._customStores=d.customStores||window._customStores||[];
+        // Sync HG keys from remote
+        var hgKeys2=['hg_auto_pay','hg_deudas','hg_prestamos','hg_months','hg_msi_abono','hg_seguro'];
+        hgKeys2.forEach(function(k){if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,d[k]);});
         localStorage.setItem('super_ts',d.updatedAt||Date.now());
       }
     }else{window.saveRemote();}
@@ -1022,7 +1046,7 @@ function hgLoad(){
     return n;
   }catch(e){return{};}
 }
-function hgSave(md){localStorage.setItem('hg_months',JSON.stringify(md));}
+function hgSave(md){localStorage.setItem('hg_months',JSON.stringify(md));if(window.saveRemote)window.saveRemote();}
 // Purge all months with zero or empty total on startup
 (function hgPurgeEmpty(){
   var md=hgLoad();
@@ -1211,7 +1235,7 @@ document.getElementById('hg-add-deuda').onclick=function(){var d=JSON.parse(loca
 document.getElementById('hg-add-prest').onclick=function(){var p=JSON.parse(localStorage.getItem('hg_prestamos')||'null');if(!p)p=[];p.push({desc:'',fecha:'',monto:'',pagado:''});localStorage.setItem('hg_prestamos',JSON.stringify(p));window.hgRenderDeudas();};
 window._autoDetail=false;
 function hgAutoPayments(){try{return JSON.parse(localStorage.getItem('hg_auto_pay')||'{}');}catch(e){return{};}}
-function hgSaveAutoPay(pays){localStorage.setItem('hg_auto_pay',JSON.stringify(pays));}
+function hgSaveAutoPay(pays){localStorage.setItem('hg_auto_pay',JSON.stringify(pays));if(window.saveRemote)window.saveRemote();}
 window.hgUpdAutoPay=function(idx,field,val){var pays=hgAutoPayments();if(!pays[idx])pays[idx]={};pays[idx][field]=val;hgSaveAutoPay(pays);window.hgRenderAuto();};
 window.hgRenderAuto=function(){
   var pays=hgAutoPayments();var pagadas=AMORT.filter(function(r){return r.p;}).length;var actual=AMORT.find(function(r){return r.a;});
