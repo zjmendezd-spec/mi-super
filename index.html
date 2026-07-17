@@ -636,38 +636,23 @@ import{getFirestore,doc,onSnapshot,setDoc,getDoc}from"https://www.gstatic.com/fi
 const cfg={apiKey:"AIzaSyBuldWhtTyv1kdfRkEdcPzg5UAyOtkcQNU",authDomain:"mi-super-janelle.firebaseapp.com",projectId:"mi-super-janelle",storageBucket:"mi-super-janelle.firebasestorage.app",messagingSenderId:"497391816239",appId:"1:497391816239:web:31934cba82f363d8d1c0da"};
 const app=initializeApp(cfg);
 const db=getFirestore(app);
-const DS=doc(db,'misuper','shared');   // Mi Super data
-const DH=doc(db,'misuper','hormigas'); // Hormigas data (separate doc)
+const D=doc(db,'misuper','shared'); // single document, same as always
 
 function setSS(s){var e=document.getElementById('sync-status');if(!e)return;var m={ok:'🟢 Sincronizado',saving:'🟡 Guardando…',error:'🔴 Error',offline:'⚪ Sin conexión'};e.textContent=m[s]||m.ok;}
 
-var _ts=null,_th=null;
+var _t=null;
 
-// Save Mi Super data
+// Save everything to one document
 window.saveRemote=function(){
   setSS('saving');
-  clearTimeout(_ts);
-  _ts=setTimeout(async function(){
+  clearTimeout(_t);
+  _t=setTimeout(async function(){
     try{
-      await setDoc(DS,{
+      await setDoc(D,{
         items:window._items||[],
         trips:window._trips||[],
         pending:window._pending||[],
         customStores:window._customStores||[],
-        updatedAt:Date.now()
-      });
-      setSS('ok');
-    }catch(e){setSS('error');console.error('saveRemote error',e);}
-  },600);
-};
-
-// Save Hormigas data separately
-window.saveHormigas=function(){
-  setSS('saving');
-  clearTimeout(_th);
-  _th=setTimeout(async function(){
-    try{
-      var payload={
         hg_months:localStorage.getItem('hg_months')||'{}',
         hg_deudas:localStorage.getItem('hg_deudas')||'[]',
         hg_prestamos:localStorage.getItem('hg_prestamos')||'[]',
@@ -675,51 +660,54 @@ window.saveHormigas=function(){
         hg_msi_abono:localStorage.getItem('hg_msi_abono')||'0',
         hg_seguro:localStorage.getItem('hg_seguro')||'false',
         updatedAt:Date.now()
-      };
-      await setDoc(DH,payload);
+      });
       setSS('ok');
-      console.log('[HG] Saved to Firebase OK');
-    }catch(e){
-      setSS('error');
-      console.error('[HG] Save error:',e.message||e);
-    }
-  },400);
+    }catch(e){setSS('error');console.error('saveRemote',e);}
+  },800);
 };
 
-// Listen to Mi Super changes
-onSnapshot(DS,function(snap){
-  if(!snap.exists())return;
-  var d=snap.data();
-  if((d.items||[]).length>=(window._items||[]).length) window._items=d.items||[];
-  if((d.trips||[]).length>=(window._trips||[]).length) window._trips=d.trips||[];
-  if((d.pending||[]).length>=(window._pending||[]).length) window._pending=d.pending||[];
-  window._customStores=d.customStores||window._customStores||[];
-  window._saveLocal();
+// Alias so HG functions work
+window.saveHormigas=window.saveRemote;
+
+// Merge HG months: keep all months from both local and remote
+function mergeHGMonths(remoteStr){
+  if(!remoteStr||remoteStr==='{}') return;
+  try{
+    var remote=JSON.parse(remoteStr);
+    var local=JSON.parse(localStorage.getItem('hg_months')||'{}');
+    var merged=Object.assign({},remote);
+    // Add local months not in remote
+    Object.keys(local).forEach(function(k){
+      if(!merged[k]) merged[k]=local[k];
+    });
+    localStorage.setItem('hg_months',JSON.stringify(merged));
+  }catch(e){ console.warn('mergeHGMonths:',e); }
+}
+
+// Apply remote data
+function applyRemote(d){
+  // Take remote Mi Super data (it's the source of truth for list/trips)
+  if(d.items) window._items=d.items;
+  if(d.trips) window._trips=d.trips;
+  if(d.pending) window._pending=d.pending;
+  if(d.customStores) window._customStores=d.customStores;
+  window._saveLocal&&window._saveLocal();
   window._updateGrand&&window._updateGrand();
-  var at=['lista','historial'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});
+
+  // HG months: merge local + remote
+  if(d.hg_months) mergeHGMonths(d.hg_months);
+  // Other HG keys: take remote
+  ['hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){
+    if(d[k]!==undefined&&d[k]!==null) localStorage.setItem(k,String(d[k]));
+  });
+
+  // Re-render active tab
+  var at=['lista','historial','gastos'].find(function(t){
+    var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');
+  });
   if(at==='lista')window._rl&&window._rl();
   else if(at==='historial')window._rh&&window._rh();
-  setSS('ok');
-},function(){setSS('offline');});
-
-// Listen to Hormigas changes
-onSnapshot(DH,function(snap){
-  if(!snap.exists()){
-    console.log('[HG] No Hormigas document in Firebase yet');
-    return;
-  }
-  var d=snap.data();
-  console.log('[HG] Received from Firebase, keys:',Object.keys(d));
-  // Write all HG keys to localStorage
-  ['hg_months','hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){
-    if(d[k]!==undefined&&d[k]!==null){
-      localStorage.setItem(k,String(d[k]));
-      console.log('[HG] Set',k,'len=',String(d[k]).length);
-    }
-  });
-  // Re-render if on Gastos tab
-  var gasEl=document.getElementById('sec-gastos');
-  if(gasEl&&gasEl.classList.contains('active')){
+  else if(at==='gastos'){
     var hgActive=['gastos','deudas','auto'].find(function(p){
       var el=document.getElementById('hg-panel-'+p);return el&&el.style.display!=='none';
     })||'gastos';
@@ -729,43 +717,40 @@ onSnapshot(DH,function(snap){
       else if(window.hgRenderGastos)window.hgRenderGastos();
     },50);
   }
+}
+
+// Real-time listener
+var _applying=false;
+onSnapshot(D,function(snap){
+  if(!snap.exists()||_applying)return;
+  _applying=true;
+  applyRemote(snap.data());
+  _applying=false;
   setSS('ok');
-},function(err){setSS('offline');console.error('[HG] onSnapshot error:',err);});
+},function(err){
+  setSS('offline');
+  console.error('onSnapshot error:',err.code,err.message);
+});
 
 // Initial load
 (async function(){
   try{
-    // Load Mi Super
-    var snap=await getDoc(DS);
+    var snap=await getDoc(D);
     if(snap.exists()){
-      var d=snap.data();
-      var remoteTs=d.updatedAt||0;
-      var localTs=parseInt(localStorage.getItem('super_ts')||0);
-      if(!(window._items||[]).length||remoteTs>localTs){
-        window._items=d.items||window._items||[];
-        window._trips=d.trips||window._trips||[];
-        window._pending=d.pending||window._pending||[];
-        window._customStores=d.customStores||window._customStores||[];
-        window._saveLocal();
-        localStorage.setItem('super_ts',String(remoteTs||Date.now()));
-      }
-    }else{window.saveRemote();}
-    // Load Hormigas
-    var snapH=await getDoc(DH);
-    if(snapH.exists()){
-      var dh=snapH.data();
-      ['hg_months','hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){
-        if(dh[k]!==undefined&&dh[k]!==null)localStorage.setItem(k,String(dh[k]));
-      });
-      // Re-render HG with fresh data
-      setTimeout(function(){
-        if(window.hgRenderGastos)window.hgRenderGastos();
-      },100);
-    }else{window.saveHormigas();}
-  }catch(e){setSS('offline');}
+      applyRemote(snap.data());
+      // Push merged result back so Firebase has all months from all devices
+      setTimeout(function(){window.saveRemote();},1000);
+    }else{
+      window.saveRemote();
+    }
+    setSS('ok');
+  }catch(e){
+    setSS('offline');
+    console.error('getDoc error:',e.code,e.message);
+  }
   window._rl&&window._rl();
   window._updateGrand&&window._updateGrand();
-  setSS('ok');
+  setTimeout(function(){if(window.hgRenderGastos)window.hgRenderGastos();},300);
 })();
 </script>
 
