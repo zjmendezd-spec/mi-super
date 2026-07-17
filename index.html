@@ -757,6 +757,10 @@ onSnapshot(DH,function(snap){
       ['hg_months','hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){
         if(dh[k]!==undefined&&dh[k]!==null)localStorage.setItem(k,String(dh[k]));
       });
+      // Re-render HG with fresh data
+      setTimeout(function(){
+        if(window.hgRenderGastos)window.hgRenderGastos();
+      },100);
     }else{window.saveHormigas();}
   }catch(e){setSS('offline');}
   window._rl&&window._rl();
@@ -815,7 +819,15 @@ function showTab(t){
   });
   if(t==='lista'){buildSel('inp-store');renderList();}
   else if(t==='historial'){buildSel('imp-store');renderHistory();}
-  else if(t==='gastos')hgRenderGastos();
+  else if(t==='gastos'){
+    // Always re-render from localStorage when switching to Gastos
+    setTimeout(function(){
+      if(window.hgRenderGastos) window.hgRenderGastos();
+      // Also refresh deudas and auto in background so they're ready
+      if(window.hgRenderDeudas) window.hgRenderDeudas();
+      if(window.hgRenderAuto) window.hgRenderAuto();
+    }, 50);
+  }
 }
 
 // Auto-detect category from product name
@@ -1335,7 +1347,9 @@ window.hgRenderAuto=function(){
 document.getElementById('hg-seguro-btn').onclick=function(){var sp=JSON.parse(localStorage.getItem('hg_seguro')||'false');localStorage.setItem('hg_seguro',JSON.stringify(!sp));if(window.saveHormigas)window.saveHormigas();var al=document.getElementById('hg-seguro-alert');if(al)al.style.display=!sp?'none':'flex';hgToast(!sp?'Seguro marcado pagado ✓':'Seguro pendiente');};
 document.getElementById('auto-detail-btn').onclick=function(){window._autoDetail=!window._autoDetail;this.textContent=window._autoDetail?'⊖ Ocultar':'⊕ Ver detalle';window.hgRenderAuto();};
 hgUpdateDisp();
+// Render with whatever is in localStorage right now
 window.hgRenderGastos();
+// Firebase will call hgRenderGastos again once remote data loads
 })();
 
 // ── Init Mi Súper ──
