@@ -317,7 +317,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
       <span id="sync-status">⚪ Conectando…</span>
     </div>
     <div class="top-btns">
-      <button class="gtbtn" onclick="openSync()" title="Sincronizar datos">🔄</button>
+      <button class="gtbtn" onclick="if(window.loadRemote){var e=document.getElementById('sync-status');if(e)e.textContent='🟡 Cargando…';window.loadRemote().then(function(){window._rl&&window._rl();});}else{openSync();}" title="Sincronizar datos">🔄</button>
       <button class="gtbtn" onclick="openGrandTotal()">
         <span class="lbl">Total acumulado</span>
         <span class="num" id="grand-total-display">$0.00</span>
@@ -462,7 +462,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
       <div id="hg-month-disp" style="font-size:12px;font-weight:800;color:#E84393;min-width:95px;text-align:center">JUNIO 2026</div>
       <button id="hg-next" style="background:#2E2C4A;border:1px solid #413E62;border-radius:7px;padding:4px 10px;color:#F2EFE9;font-weight:700;cursor:pointer;font-size:13px">›</button>
       <button id="hg-new-mes" style="background:rgba(232,67,147,.15);border:1px solid rgba(232,67,147,.3);color:#E84393;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit">+ Nuevo mes</button>
-      <button onclick="if(window.saveHormigas){window.saveHormigas();this.textContent='✅ Enviado!';setTimeout(()=>this.textContent='☁️ Sincronizar',2000);}else{this.textContent='❌ Error';}" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit">☁️ Sincronizar</button>
+      <button onclick="var btn=this;btn.textContent='🔄 Guardando…';if(window.saveRemote){window.saveRemote();setTimeout(function(){btn.textContent='✅ Guardado!';setTimeout(function(){btn.textContent='☁️ Sincronizar';},2000);},900);}else{btn.textContent='❌ Error';}" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit">☁️ Sincronizar</button>
       <button onclick="hgDiag()" style="background:rgba(255,200,0,.2);border:1px solid rgba(255,200,0,.4);color:#FFD700;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit">🔍 Diagnóstico</button>
     </div>
   </div>
@@ -629,79 +629,59 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
 
 <div class="toast" id="toast"></div>
 
-<!-- Firebase -->
-<script type="module">
-import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import{getFirestore,doc,onSnapshot,setDoc,getDoc}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-const cfg={apiKey:"AIzaSyBuldWhtTyv1kdfRkEdcPzg5UAyOtkcQNU",authDomain:"mi-super-janelle.firebaseapp.com",projectId:"mi-super-janelle",storageBucket:"mi-super-janelle.firebasestorage.app",messagingSenderId:"497391816239",appId:"1:497391816239:web:31934cba82f363d8d1c0da"};
-const app=initializeApp(cfg);
-const db=getFirestore(app);
-const D=doc(db,'misuper','shared'); // single document, same as always
+<!-- Sync -->
+<script>
+// ══ JSONBin Sync ══
+var JBIN_KEY='$2a$10$mC9yH0zV8M8T135x.mF/Nu8xA9WR19UCx5kb1/bLCGPX0fV8fk4P2';
+var JBIN_BIN_ID='6a6d70d1f5f4af5e29dc9f6f';
+var JBIN_URL='https://api.jsonbin.io/v3/b/'+JBIN_BIN_ID;
+var _syncT=null;
 
-function setSS(s){var e=document.getElementById('sync-status');if(!e)return;var m={ok:'🟢 Sincronizado',saving:'🟡 Guardando…',error:'🔴 Error',offline:'⚪ Sin conexión'};e.textContent=m[s]||m.ok;}
+function setSS(s){
+  var e=document.getElementById('sync-status');
+  if(!e)return;
+  var m={ok:'🟢 Sincronizado',saving:'🟡 Guardando…',error:'🔴 Error',offline:'⚪ Sin conexión'};
+  e.textContent=m[s]||m.ok;
+}
 
-var _t=null;
+function buildPayload(){
+  return {
+    items:window._items||[],
+    trips:window._trips||[],
+    pending:window._pending||[],
+    customStores:window._customStores||[],
+    hg_months:localStorage.getItem('hg_months')||'{}',
+    hg_deudas:localStorage.getItem('hg_deudas')||'[]',
+    hg_prestamos:localStorage.getItem('hg_prestamos')||'[]',
+    hg_auto_pay:localStorage.getItem('hg_auto_pay')||'{}',
+    hg_msi_abono:localStorage.getItem('hg_msi_abono')||'0',
+    hg_seguro:localStorage.getItem('hg_seguro')||'false',
+    updatedAt:Date.now()
+  };
+}
 
-// Save everything to one document
-window.saveRemote=function(){
-  setSS('saving');
-  clearTimeout(_t);
-  _t=setTimeout(async function(){
-    try{
-      await setDoc(D,{
-        items:window._items||[],
-        trips:window._trips||[],
-        pending:window._pending||[],
-        customStores:window._customStores||[],
-        hg_months:localStorage.getItem('hg_months')||'{}',
-        hg_deudas:localStorage.getItem('hg_deudas')||'[]',
-        hg_prestamos:localStorage.getItem('hg_prestamos')||'[]',
-        hg_auto_pay:localStorage.getItem('hg_auto_pay')||'{}',
-        hg_msi_abono:localStorage.getItem('hg_msi_abono')||'0',
-        hg_seguro:localStorage.getItem('hg_seguro')||'false',
-        updatedAt:Date.now()
-      });
-      setSS('ok');
-    }catch(e){setSS('error');console.error('saveRemote',e);}
-  },800);
-};
-
-// Alias so HG functions work
-window.saveHormigas=window.saveRemote;
-
-// Merge HG months: keep all months from both local and remote
 function mergeHGMonths(remoteStr){
-  if(!remoteStr||remoteStr==='{}') return;
+  if(!remoteStr||remoteStr==='{}')return;
   try{
     var remote=JSON.parse(remoteStr);
     var local=JSON.parse(localStorage.getItem('hg_months')||'{}');
-    var merged=Object.assign({},remote);
-    // Add local months not in remote
-    Object.keys(local).forEach(function(k){
-      if(!merged[k]) merged[k]=local[k];
-    });
-    localStorage.setItem('hg_months',JSON.stringify(merged));
-  }catch(e){ console.warn('mergeHGMonths:',e); }
+    Object.keys(remote).forEach(function(k){if(!local[k])local[k]=remote[k];});
+    localStorage.setItem('hg_months',JSON.stringify(local));
+  }catch(e){}
 }
 
-// Apply remote data
-function applyRemote(d){
-  // Take remote Mi Super data (it's the source of truth for list/trips)
+function applyData(d){
+  if(!d)return;
   if(d.items) window._items=d.items;
   if(d.trips) window._trips=d.trips;
   if(d.pending) window._pending=d.pending;
   if(d.customStores) window._customStores=d.customStores;
   window._saveLocal&&window._saveLocal();
   window._updateGrand&&window._updateGrand();
-
-  // HG months: merge local + remote
   if(d.hg_months) mergeHGMonths(d.hg_months);
-  // Other HG keys: take remote
   ['hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){
-    if(d[k]!==undefined&&d[k]!==null) localStorage.setItem(k,String(d[k]));
+    if(d[k]!==undefined&&d[k]!==null)localStorage.setItem(k,String(d[k]));
   });
-
-  // Re-render active tab
   var at=['lista','historial','gastos'].find(function(t){
     var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');
   });
@@ -719,40 +699,46 @@ function applyRemote(d){
   }
 }
 
-// Real-time listener
-var _applying=false;
-onSnapshot(D,function(snap){
-  if(!snap.exists()||_applying)return;
-  _applying=true;
-  applyRemote(snap.data());
-  _applying=false;
-  setSS('ok');
-},function(err){
-  setSS('offline');
-  console.error('onSnapshot error:',err.code,err.message);
-});
+// Save
+window.saveRemote=function(){
+  setSS('saving');
+  clearTimeout(_syncT);
+  _syncT=setTimeout(async function(){
+    try{
+      var r=await fetch(JBIN_URL,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
+        body:JSON.stringify(buildPayload())
+      });
+      if(r.ok){setSS('ok');}
+      else{var e=await r.json();setSS('error');console.error('save:',r.status,e);}
+    }catch(e){setSS('error');console.error('saveRemote:',e);}
+  },800);
+};
+window.saveHormigas=window.saveRemote;
 
-// Initial load
-(async function(){
+// Load
+window.loadRemote=async function(){
+  setSS('saving');
   try{
-    var snap=await getDoc(D);
-    if(snap.exists()){
-      applyRemote(snap.data());
-      // Push merged result back so Firebase has all months from all devices
-      setTimeout(function(){window.saveRemote();},1000);
-    }else{
-      window.saveRemote();
-    }
-    setSS('ok');
-  }catch(e){
-    setSS('offline');
-    console.error('getDoc error:',e.code,e.message);
-  }
+    var r=await fetch(JBIN_URL+'/latest',{
+      headers:{'X-Master-Key':JBIN_KEY,'X-Bin-Meta':false}
+    });
+    if(r.ok){
+      var j=await r.json();
+      applyData(j.record||j);
+      setSS('ok');
+    }else{setSS('error');console.error('load:',r.status);}
+  }catch(e){setSS('offline');console.error('loadRemote:',e);}
+};
+
+// Init — load on startup
+(async function(){
+  await window.loadRemote();
   window._rl&&window._rl();
   window._updateGrand&&window._updateGrand();
   setTimeout(function(){if(window.hgRenderGastos)window.hgRenderGastos();},300);
-})();
-</script>
+})();</script>
 
 <script>
 // ══════════════════════════════════════
@@ -1334,7 +1320,7 @@ document.getElementById('auto-detail-btn').onclick=function(){window._autoDetail
 hgUpdateDisp();
 // Render with whatever is in localStorage right now
 window.hgRenderGastos();
-// Firebase will call hgRenderGastos again once remote data loads
+// JSONBin will re-render after load
 })();
 
 // ── Init Mi Súper ──
@@ -1348,7 +1334,7 @@ window.hgDiag=function(){
     var v=localStorage.getItem(k);
     info+=k+': '+(v?v.length+' chars → '+v.substring(0,60)+'…':'VACÍO')+'\n';
   });
-  info+='\n=== Firebase saveHormigas ===\n';
+  info+='\n=== JSONBin saveHormigas ===\n';
   info+=(window.saveHormigas?'✅ Función disponible':'❌ NO disponible')+'\n';
   info+='\nPresiona ☁️ Sincronizar y recarga para ver si llegan datos.';
   el.textContent=info;
