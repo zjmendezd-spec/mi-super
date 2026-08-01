@@ -433,12 +433,71 @@ var JBIN_URL='https://api.jsonbin.io/v3/b/6a6d70d1f5f4af5e29dc9f6f';
 var _syncT=null;
 function setSS(s){var e=document.getElementById('sync-status');if(!e)return;var m={ok:'🟢 Sincronizado',saving:'🟡 Guardando…',error:'🔴 Error',offline:'⚪ Sin conexión'};e.textContent=m[s]||s;}
 function buildPayload(){return{items:window._items||[],trips:window._trips||[],pending:window._pending||[],customStores:window._customStores||[],hg_months:localStorage.getItem('hg_months')||'{}',hg_deudas:localStorage.getItem('hg_deudas')||'[]',hg_prestamos:localStorage.getItem('hg_prestamos')||'[]',hg_auto_pay:localStorage.getItem('hg_auto_pay')||'{}',hg_msi_abono:localStorage.getItem('hg_msi_abono')||'0',hg_seguro:localStorage.getItem('hg_seguro')||'false',updatedAt:Date.now()};}
-function mergeHGMonths(rs){if(!rs||rs==='{}')return;try{var r=JSON.parse(rs),l=JSON.parse(localStorage.getItem('hg_months')||'{}');Object.keys(r).forEach(function(k){if(!l[k])l[k]=r[k];});localStorage.setItem('hg_months',JSON.stringify(l));}catch(e){}}
-function applyData(d){if(!d)return;if(d.items&&d.items.length)window._items=d.items;if(d.trips&&d.trips.length)window._trips=d.trips;if(d.pending&&d.pending.length)window._pending=d.pending;if(d.customStores)window._customStores=d.customStores;window._saveLocal&&window._saveLocal();window._updateGrand&&window._updateGrand();if(d.hg_months)mergeHGMonths(d.hg_months);['hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){if(d[k]!=null)localStorage.setItem(k,String(d[k]));});var at=['lista','historial','gastos'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});if(at==='lista')window._rl&&window._rl();else if(at==='historial')window._rh&&window._rh();else if(at==='gastos'){var hp=document.getElementById('hg-panel-gastos');if(hp&&hp.style.display!=='none'&&window.hgRenderGastos)window.hgRenderGastos();}}
+function mergeHGMonths(rs){
+  if(!rs||rs==='{}')return;
+  try{
+    var remote=JSON.parse(rs);
+    var local=JSON.parse(localStorage.getItem('hg_months')||'{}');
+    Object.keys(remote).forEach(function(k){
+      if(!local[k]){
+        // Month doesn't exist locally — take remote entirely
+        local[k]=remote[k];
+      } else {
+        // Month exists in both — merge rows by id within each category
+        var rCats=remote[k].categories||{};
+        var lCats=local[k].categories||{};
+        Object.keys(rCats).forEach(function(cat){
+          var rRows=rCats[cat]||[];
+          var lRows=lCats[cat]||[];
+          // Build set of local row ids
+          var lIds=new Set(lRows.map(function(r){return r.id;}));
+          // Add remote rows not present locally
+          rRows.forEach(function(r){
+            if(!lIds.has(r.id)) lRows.push(r);
+          });
+          // Also update existing rows if remote version is newer (has more data filled in)
+          lRows.forEach(function(lr,i){
+            var rr=rRows.find(function(r){return r.id===lr.id;});
+            if(!rr)return;
+            // Remote wins if it has more fields filled in
+            if(rr.monto&&!lr.monto) lRows[i].monto=rr.monto;
+            if(rr.concepto&&!lr.concepto) lRows[i].concepto=rr.concepto;
+            if(rr.fecha&&!lr.fecha) lRows[i].fecha=rr.fecha;
+            if(rr.pagado==='Pagado') lRows[i].pagado='Pagado';
+            if(rr.quien&&!lr.quien) lRows[i].quien=rr.quien;
+          });
+          lCats[cat]=lRows;
+        });
+        local[k].categories=lCats;
+      }
+    });
+    localStorage.setItem('hg_months',JSON.stringify(local));
+  }catch(e){console.warn('mergeHGMonths:',e);}
+}
+function applyData(d){if(!d)return;if(d.items&&d.items.length)window._items=d.items;if(d.trips&&d.trips.length)window._trips=d.trips;if(d.pending&&d.pending.length)window._pending=d.pending;if(d.customStores)window._customStores=d.customStores;window._saveLocal&&window._saveLocal();window._updateGrand&&window._updateGrand();if(d.hg_months)mergeHGMonths(d.hg_months);['hg_deudas','hg_prestamos','hg_auto_pay','hg_msi_abono','hg_seguro'].forEach(function(k){if(d[k]!=null)localStorage.setItem(k,String(d[k]));});
+  // Always update HG summary cards so Jan/Dan totals stay current
+  setTimeout(function(){try{if(typeof hgResumen==='function')hgResumen();}catch(e){}},100);
+  var at=['lista','historial','gastos'].find(function(t){var s=document.getElementById('sec-'+t);return s&&s.classList.contains('active');});if(at==='lista')window._rl&&window._rl();else if(at==='historial')window._rh&&window._rh();else if(at==='gastos'){var hp=document.getElementById('hg-panel-gastos');if(hp&&hp.style.display!=='none'&&window.hgRenderGastos)window.hgRenderGastos();}}
 window.saveRemote=function(){setSS('saving');clearTimeout(_syncT);_syncT=setTimeout(async function(){try{var r=await fetch(JBIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},body:JSON.stringify(buildPayload())});if(r.ok)setSS('ok');else setSS('error');}catch(e){setSS('error');}},800);};
 window.saveHormigas=window.saveRemote;
 window.loadRemote=async function(){setSS('saving');try{var r=await fetch(JBIN_URL+'/latest',{headers:{'X-Master-Key':JBIN_KEY,'X-Bin-Meta':false}});if(r.ok){var j=await r.json();applyData(j.record||j);setSS('ok');}else setSS('error');}catch(e){setSS('offline');}};
-window.syncNow=async function(){setSS('saving');await window.loadRemote();window._rl&&window._rl();};
+window.syncNow=async function(){
+  setSS('saving');
+  await window.loadRemote();
+  window._rl&&window._rl();
+  // Re-render active HG sub-panel if on Gastos tab
+  var gasEl=document.getElementById('sec-gastos');
+  if(gasEl&&gasEl.classList.contains('active')){
+    var hgActive=['gastos','deudas','auto'].find(function(p){
+      var el=document.getElementById('hg-panel-'+p);return el&&el.style.display!=='none';
+    })||'gastos';
+    setTimeout(function(){
+      if(hgActive==='gastos'&&window.hgRenderGastos)window.hgRenderGastos();
+      else if(hgActive==='deudas'&&window.hgRenderDeudas)window.hgRenderDeudas();
+      else if(hgActive==='auto'&&window.hgRenderAuto)window.hgRenderAuto();
+    },200);
+  }
+};
 // Load on startup — non-blocking
 (function(){setSS('saving');fetch(JBIN_URL+'/latest',{headers:{'X-Master-Key':JBIN_KEY,'X-Bin-Meta':false}}).then(function(r){return r.ok?r.json():null;}).then(function(j){if(j)applyData(j.record||j);setSS('ok');window._rl&&window._rl();window._updateGrand&&window._updateGrand();}).catch(function(){setSS('offline');});})();
 </script>
