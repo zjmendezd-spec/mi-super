@@ -152,8 +152,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
 
 #scroll-top-btn{display:none;position:fixed;bottom:1.5rem;right:1rem;z-index:150;background:linear-gradient(135deg,#FF6B6B,#FF8E53);color:#fff;border:none;border-radius:50%;width:44px;height:44px;font-size:20px;cursor:pointer;box-shadow:0 4px 16px rgba(255,107,107,.4)}
 
-.sub-tabs{display:flex;gap:4px;margin-bottom:1rem;background:var(--surface2);border-radius:var(--radius);padding:4px}
-.sub-tab-btn{flex:1;padding:7px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s}
+.sub-tabs{display:flex;gap:4px;margin-bottom:1rem;background:var(--surface2);border-radius:var(--radius);padding:4px;overflow-x:auto;scrollbar-width:none}
+.sub-tabs::-webkit-scrollbar{display:none}
+.sub-tab-btn{flex:1;min-width:0;padding:7px 4px;border:none;border-radius:10px;background:transparent;color:var(--muted);font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:380px){.sub-tab-btn{font-size:11px;padding:6px 3px}}
 .sub-tab-btn.active{background:linear-gradient(135deg,#FF6B6B,#FF8E53);color:#fff;box-shadow:0 2px 8px rgba(255,107,107,.3)}
 </style>
 </head>
@@ -171,7 +173,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
   </div>
   <div class="nav-strip">
     <button class="nav-btn active" id="t-lista" onclick="showTab('lista')"><span class="ni">🛒</span>Lista</button>
-    <button class="nav-btn" id="t-historial" onclick="showTab('historial')"><span class="ni">📊</span>Historial</button>
     <button class="nav-btn" id="t-gastos" onclick="showTab('gastos')"><span class="ni">🐜</span>Gastos</button>
   </div>
 </div>
@@ -181,8 +182,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
 <!-- LISTA -->
 <div id="sec-lista" class="section active">
   <div class="sub-tabs">
-    <button class="sub-tab-btn active" id="lt-lista" onclick="setLTab('lista')">🛒 Lista de compras</button>
+    <button class="sub-tab-btn active" id="lt-lista" onclick="setLTab('lista')">🛒 Lista</button>
     <button class="sub-tab-btn" id="lt-pend" onclick="setLTab('pend')">🔖 Pendientes <span id="pend-badge" style="background:rgba(255,107,107,.2);color:var(--primary);border-radius:20px;padding:1px 7px;font-size:10px">0</span></button>
+    <button class="sub-tab-btn" id="lt-hist" onclick="setLTab('hist')">📊 Historial</button>
   </div>
   <div id="lpanel-lista">
     <div style="display:flex;gap:8px;margin-bottom:.75rem">
@@ -228,6 +230,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
     </div>
   </div>
   <div id="lpanel-pend" style="display:none">
+    <div class="sort-bar" style="margin-bottom:.625rem">
+      <span class="sort-lbl">Ordenar:</span>
+      <button class="sbtn active" id="ps-recent" onclick="setPS('recent')">🕐 Recientes</button>
+      <button class="sbtn" id="ps-az" onclick="setPS('az')">A→Z</button>
+    </div>
     <div style="margin-bottom:.75rem;position:relative">
       <input type="text" id="pend-search" placeholder="🔍 Buscar pendiente…" oninput="searchPend(this.value)" style="padding-right:32px">
       <button onclick="document.getElementById('pend-search').value='';searchPend('')" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted)">✕</button>
@@ -247,10 +254,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
     </div>
     <div class="card"><div id="pending-list"></div></div>
   </div>
-</div>
-
-<!-- HISTORIAL -->
-<div id="sec-historial" class="section">
+  <div id="lpanel-hist" style="display:none">
   <div class="stat-grid">
     <div class="stat"><div class="stat-val" id="s-trips">0</div><div class="stat-lbl">Compras</div></div>
     <div class="stat"><div class="stat-val" id="s-total">$0</div><div class="stat-lbl">Gastado</div></div>
@@ -276,6 +280,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
     </div>
   </div>
   <div id="history-container"></div>
+  </div>
+
 </div>
 
 <!-- GASTOS -->
@@ -514,7 +520,7 @@ window._items=JSON.parse(localStorage.getItem('super_items')||'[]');
 window._trips=JSON.parse(localStorage.getItem('super_trips')||'[]');
 window._pending=JSON.parse(localStorage.getItem('super_pending')||'[]');
 window._customStores=JSON.parse(localStorage.getItem('super_stores')||'[]');
-var _filterVal='',_filterCat='',_lSort='manual',_pSort='manual';
+var _filterVal='',_filterCat='',_lSort='manual',_pSort='recent';
 var _histFilter='',_activeMonth='',_assignIdx=-1,_dragSrc=-1,_dragType='',_lTab='lista';
 var MONTHS_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 var DEFAULT_STORES=['Walmart','Soriana',"Sam's",'Chedraui','MEGA','Bodega Aurrera'];
@@ -543,10 +549,10 @@ var CLEANING=['jabón','jabon','detergente','cloro','suavizante','esponja','pape
 function autoDetectCat(name){var n=name.trim().toLowerCase();if(!n)return;var catInp=document.getElementById('inp-cat');if(catInp&&catInp.value)return;var cat='';if(PERISHABLES.some(function(p){return n.indexOf(p)>=0;})||DRY_GOODS.some(function(p){return n.indexOf(p)>=0;}))cat='Despensa';else if(CLEANING.some(function(p){return n.indexOf(p)>=0;}))cat='Limpieza';if(cat&&catInp)catInp.value=cat;}
 
 // ── TABS ──
-function setLTab(t){_lTab=t;var lp=document.getElementById('lpanel-lista'),pp=document.getElementById('lpanel-pend');if(lp)lp.style.display=t==='lista'?'block':'none';if(pp)pp.style.display=t==='pend'?'block':'none';var lb=document.getElementById('lt-lista'),pb=document.getElementById('lt-pend');if(lb){lb.classList.toggle('active',t==='lista');}if(pb){pb.classList.toggle('active',t==='pend');}if(t==='pend')renderPending();else renderList();}
-function showTab(t){['lista','historial','gastos'].forEach(function(n){document.getElementById('sec-'+n).classList.toggle('active',n===t);document.getElementById('t-'+n).classList.toggle('active',n===t);});if(t==='lista'){buildSel('inp-store');renderList();}else if(t==='historial'){buildSel('imp-store');renderHistory();}else if(t==='gastos'){hgTab('gastos');}}
+function setLTab(t){_lTab=t;var lp=document.getElementById('lpanel-lista'),pp=document.getElementById('lpanel-pend'),hp=document.getElementById('lpanel-hist');if(lp)lp.style.display=t==='lista'?'block':'none';if(pp)pp.style.display=t==='pend'?'block':'none';if(hp)hp.style.display=t==='hist'?'block':'none';var lb=document.getElementById('lt-lista'),pb=document.getElementById('lt-pend'),hb=document.getElementById('lt-hist');if(lb)lb.classList.toggle('active',t==='lista');if(pb)pb.classList.toggle('active',t==='pend');if(hb)hb.classList.toggle('active',t==='hist');if(t==='pend')renderPending();else if(t==='hist'){buildSel('imp-store');renderHistory();}else renderList();}
+function showTab(t){['lista','gastos'].forEach(function(n){document.getElementById('sec-'+n).classList.toggle('active',n===t);document.getElementById('t-'+n).classList.toggle('active',n===t);});if(t==='lista'){buildSel('inp-store');renderList();}else if(t==='gastos'){hgTab('gastos');}}
 window._rl=function(){if(document.getElementById('sec-lista').classList.contains('active'))renderList();};
-window._rh=function(){if(document.getElementById('sec-historial').classList.contains('active'))renderHistory();};
+window._rh=function(){if(_lTab==='hist')renderHistory();};
 
 // ── LISTA ──
 function setLS(s){_lSort=s;document.querySelectorAll('[id^=ls-]').forEach(function(b){b.classList.toggle('active',b.id==='ls-'+s);});renderList();}
@@ -563,7 +569,7 @@ function toggleChk(idx){(window._items||[])[idx].checked=!(window._items||[])[id
 function removeItem(idx){(window._items||[]).splice(idx,1);save();renderList();}
 function clearChecked(){window._items=(window._items||[]).filter(function(i){return !i.checked;});save();renderList();toast('Eliminados 🗑');}
 function clearAll(){if(!confirm('¿Vaciar lista?'))return;window._items=[];save();renderList();}
-function saveTrip(){if(!(window._items||[]).length){toast('Lista vacía');return;}var d=new Date();var dk=d.getFullYear()+'-'+(d.getMonth()+1);var ds=d.toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});var tot=(window._items||[]).filter(function(i){return i.price;}).reduce(function(s,i){return s+Number(i.price)*Number(i.qty||1);},0);(window._trips=window._trips||[]).unshift({date:ds,dateKey:dk,total:tot.toFixed(2),items:JSON.parse(JSON.stringify(window._items||[])),id:Date.now()});window._items=[];save();renderList();toast('¡Compra guardada! 🎉');showTab('historial');}
+function saveTrip(){if(!(window._items||[]).length){toast('Lista vacía');return;}var d=new Date();var dk=d.getFullYear()+'-'+(d.getMonth()+1);var ds=d.toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});var tot=(window._items||[]).filter(function(i){return i.price;}).reduce(function(s,i){return s+Number(i.price)*Number(i.qty||1);},0);(window._trips=window._trips||[]).unshift({date:ds,dateKey:dk,total:tot.toFixed(2),items:JSON.parse(JSON.stringify(window._items||[])),id:Date.now()});window._items=[];save();renderList();toast('¡Compra guardada! 🎉');showTab('lista');setLTab('hist');}
 function searchLista(q){var qq=q.trim().toLowerCase();var found=false;document.querySelectorAll('#item-list .item-row').forEach(function(row){var name=row.querySelector('.item-name');if(!qq){row.style.display='';return;}if(name&&name.textContent.toLowerCase().indexOf(qq)>=0){row.style.display='';if(!found){found=true;row.scrollIntoView({behavior:'smooth',block:'center'});row.style.outline='2px solid var(--primary)';setTimeout(function(){row.style.outline='';},2000);}}else row.style.display='none';});if(qq&&!found)toast('No encontrado: "'+q+'"');}
 function dStart(e,t,idx){_dragSrc=idx;_dragType=t;e.dataTransfer.effectAllowed='move';}
 function dOver(e){e.preventDefault();e.currentTarget.style.borderTop='2px solid var(--primary)';}
@@ -571,7 +577,7 @@ function dLeave(e){e.currentTarget.style.borderTop='';}
 function dDrop(e,t,to){e.preventDefault();e.currentTarget.style.borderTop='';if(_dragSrc===to||_dragType!==t)return;var a=t==='item'?window._items:window._pending;var mv=a.splice(_dragSrc,1)[0];a.splice(to,0,mv);save();if(t==='item')renderList();else renderPending();}
 
 // ── PENDIENTES ──
-function setPS(s){_pSort=s;renderPending();}
+function setPS(s){_pSort=s;document.querySelectorAll('[id^=ps-]').forEach(function(b){b.classList.toggle('active',b.id==='ps-'+s);});renderPending();}
 function addPending(){var n=document.getElementById('pend-name').value.trim();if(!n)return;var note=document.getElementById('pend-note').value.trim();var price=document.getElementById('pend-price').value||'';var qty=Number(document.getElementById('pend-qty').value)||1;(window._pending=window._pending||[]).unshift({name:n,note:note,price:price,qty:qty,id:Date.now()});document.getElementById('pend-name').value='';document.getElementById('pend-note').value='';document.getElementById('pend-price').value='';document.getElementById('pend-qty').value='1';save();renderPending();toast('"'+n+'" agregado 📌');}
 function renderPending(){
   updateCatDLs();
@@ -580,6 +586,7 @@ function renderPending(){
   var el=document.getElementById('pending-list');
   var show=(window._pending||[]).slice();
   if(_pSort==='az')show.sort(function(a,b){return a.name.localeCompare(b.name,'es');});
+  else show.sort(function(a,b){return (b.id||0)-(a.id||0);});
   if(!show.length){el.innerHTML='<div class="empty">Sin pendientes</div>';return;}
 
   // Group by note/category
