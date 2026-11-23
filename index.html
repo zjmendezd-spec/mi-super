@@ -265,6 +265,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
   </div>
   <div class="card" style="margin-bottom:.75rem"><div class="card-title">🏪 Gasto por tienda</div><div id="store-breakdown"></div></div>
   <div id="month-tabs-row" class="month-tabs"></div>
+  <div class="card" style="margin-bottom:.75rem">
+    <div class="card-title">🛒 Comprado en <span id="bought-month-label">este mes</span> — elige para tu próxima lista</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem">Todo lo que compraron este mes, sin Home Depot, farmacias ni Super Sánchez. Marca un producto y se agrega a Pendientes para la próxima ida al súper. La lista crece sola cada vez que guardan una compra.</div>
+    <div style="margin-bottom:.5rem;position:relative">
+      <input type="text" id="bought-search" placeholder="🔍 Buscar en lo comprado…" oninput="renderBoughtItems()" style="padding-right:32px">
+      <button onclick="document.getElementById('bought-search').value='';renderBoughtItems()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div id="bought-list"></div>
+  </div>
   <div class="import-area">
     <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="var b=document.getElementById('import-form');b.style.display=b.style.display==='none'?'block':'none'">
       <div class="card-title" style="color:var(--primary);margin:0">📥 Agregar compra pasada</div><span style="color:var(--muted)">▾</span>
@@ -650,6 +659,84 @@ function closeModal(id){document.getElementById(id).classList.remove('open');_as
 function confirmAssign(){if(_assignIdx<0)return;var se=document.getElementById('modal-store');var st=se.value==='__new__'?'':se.value;var pr=document.getElementById('modal-price').value;if(!st){toast('Selecciona una tienda');return;}var it=(window._pending||[])[_assignIdx];(window._items=window._items||[]).push({name:it.name,price:pr?toCents(pr):(Number(it.price)||0),qty:Number(it.qty)||1,store:st,category:it.note||'',checked:false,id:Date.now()});window._pending=(window._pending||[]).filter(function(p){return p.id!==it.id;});save();document.getElementById('assign-modal').classList.remove('open');_assignIdx=-1;renderPending();toast('"'+it.name+'" movido a lista 🚀');showTab('lista');}
 
 // ── HISTORIAL ──
+// ── Comprado antes (checklist para armar la próxima lista) ──────────────
+// Se calcula sola de las compras guardadas en el historial: cada vez que
+// guardan una compra, los artículos nuevos aparecen aquí. No se guarda
+// aparte, así la lista nunca se desactualiza.
+// No entran: Home Depot, farmacias (cualquier tienda con "farmacia" o
+// "farma" en el nombre) ni Super Sánchez.
+function isExcludedStore(s){
+  var n=String(s||'').toLowerCase();
+  return n.indexOf('home depot')>=0||n.indexOf('sanchez')>=0||n.indexOf('s\u00e1nchez')>=0||n.indexOf('farmacia')>=0||n.indexOf('farma')>=0;
+}
+function boughtItemsForMonth(){
+  var map={};
+  (window._trips||[]).forEach(function(t){
+    if(t.dateKey!==_activeMonth)return;
+    (t.items||[]).forEach(function(it){
+      if(!it.name||!String(it.name).trim())return;
+      if(isExcludedStore(it.store))return;
+      var k=String(it.name).trim().toLowerCase();
+      var e=map[k];
+      if(!e){e=map[k]={name:String(it.name).trim(),count:0,price:0,category:'',store:it.store||''};}
+      e.count++;
+      if(it.price&&!e.price)e.price=Number(it.price)||0;
+      if(!e.category&&it.category)e.category=it.category;
+    });
+  });
+  return Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return a.name.localeCompare(b.name,'es');});
+}
+function isInPending(name){
+  var k=String(name||'').trim().toLowerCase();
+  return (window._pending||[]).some(function(p){return String(p.name||'').trim().toLowerCase()===k;});
+}
+function renderBoughtItems(){
+  var el=document.getElementById('bought-list');
+  if(!el)return;
+  var lbl=document.getElementById('bought-month-label');
+  if(lbl){
+    var p=String(_activeMonth||'').split('-');var mo=parseInt(p[1])-1;
+    lbl.textContent=(!isNaN(mo)&&mo>=0)?MONTHS_ES[mo]+' '+p[0]:'este mes';
+  }
+  var qEl=document.getElementById('bought-search');
+  var q=qEl?qEl.value.trim().toLowerCase():'';
+  var items=boughtItemsForMonth();
+  window._boughtCache=items;
+  if(q)items=items.filter(function(i){return i.name.toLowerCase().indexOf(q)>=0;});
+  if(!items.length){el.innerHTML='<div class="empty">Nada comprado este mes (sin Home Depot, farmacias ni Super Sánchez)</div>';return;}
+  el.innerHTML=items.map(function(it){
+    var idx=window._boughtCache.indexOf(it);
+    var inP=isInPending(it.name);
+    return '<label class="item-row" style="cursor:pointer;align-items:center">'
+      +'<input type="checkbox" class="chk" '+(inP?'checked':'')+' onchange="toggleBought(this,'+idx+')">'
+      +'<div style="flex:1;min-width:0"><div class="item-name'+(inP?' done':'')+'">'+esc(it.name)+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:2px">'
+      +(it.category?'\uD83C\uDFF7\uFE0F '+esc(it.category)+' \u00b7 ':'')
+      +(it.count>1?'Comprado '+it.count+' veces este mes':'Comprado este mes')
+      +(it.store?' \u00b7 \uD83C\uDFEA '+esc(it.store):'')
+      +'</div></div>'
+      +(it.price?'<span style="font-size:12px;font-weight:800;color:var(--primary)">'+fmtMXN(it.price)+'</span>':'')
+      +(inP?'<span style="font-size:10px;font-weight:800;color:var(--green);background:rgba(47,168,102,.12);padding:2px 8px;border-radius:20px">\u2713 En pendientes</span>':'')
+      +'</label>';
+  }).join('');
+}
+function toggleBought(chk,idx){
+  var it=(window._boughtCache||[])[idx];
+  if(!it)return;
+  var k=it.name.trim().toLowerCase();
+  if(chk.checked){
+    if(!isInPending(it.name)){
+      (window._pending=window._pending||[]).unshift({name:it.name,note:it.category||'',price:it.price||0,qty:1,id:Date.now()});
+      save();
+      toast('\u201c'+it.name+'\u201d agregado a Pendientes \uD83D\uDCCC');
+    }
+  }else{
+    var i=(window._pending||[]).findIndex(function(p){return String(p.name||'').trim().toLowerCase()===k;});
+    if(i>=0){window._pending.splice(i,1);save();toast('\u201c'+it.name+'\u201d quitado de Pendientes');}
+  }
+  renderPending();
+  renderBoughtItems();
+}
 function renderHistory(){
   buildSel('imp-store');
   var trips=window._trips||[];
@@ -674,7 +761,7 @@ function renderHistory(){
   if(!_activeMonth||keys.indexOf(_activeMonth)<0)_activeMonth=keys[0]||'';
   if(tabsEl){tabsEl.innerHTML='';keys.forEach(function(k){var p=k.split('-');var mo=parseInt(p[1])-1;var btn=document.createElement('button');btn.className='mtab'+(k===_activeMonth?' active':'');btn.textContent=MONTHS_ES[mo]+' '+p[0];btn.onclick=(function(key){return function(){_activeMonth=key;renderHistory();};})(k);tabsEl.appendChild(btn);});}
   var el=document.getElementById('history-container');if(!el)return;
-  if(!keys.length){el.innerHTML='<div class="empty">Sin compras guardadas</div>';return;}
+  if(!keys.length){el.innerHTML='<div class="empty">Sin compras guardadas</div>';renderBoughtItems();return;}
   var monthTrips=mmap[_activeMonth]||[];
   var p2=(_activeMonth||'').split('-');var mo2=parseInt(p2[1])-1;
   var label=(!isNaN(mo2)&&mo2>=0)?MONTHS_ES[mo2]+' '+p2[0]:'—';
@@ -684,6 +771,7 @@ function renderHistory(){
   var storeGroups={};
   monthTrips.forEach(function(t){var sc={};(t.items||[]).forEach(function(i){if(i.store)sc[i.store]=(sc[i.store]||0)+1;});var ms=Object.entries(sc).sort(function(a,b){return b[1]-a[1];})[0];var sg=ms?ms[0]:'Sin tienda';if(!storeGroups[sg])storeGroups[sg]=[];storeGroups[sg].push(t);});
   el.innerHTML='<div class="card" style="background:linear-gradient(135deg,var(--primary-light),var(--surface));border-color:var(--border2);margin-bottom:.875rem"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem"><div><div style="font-size:11px;color:var(--primary);font-weight:800;text-transform:uppercase">'+label+'</div><div style="font-size:26px;font-weight:900;color:var(--primary);letter-spacing:-1px;margin-top:2px">'+fmtMXN(mTotal)+'</div></div><div style="display:flex;gap:5px;flex-wrap:wrap">'+Object.entries(mStores).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<span class="pill" style="'+pillStyle(e[0])+'">'+esc(e[0])+' '+fmtMXN(e[1])+'</span>';}).join('')+'</div></div></div>'+Object.entries(storeGroups).map(function(sg){var sgTrips=sg[1];var sgTotal=sgTrips.reduce(function(s,t){return s+(Number(t.total)||0);},0);return '<div style="margin-bottom:1rem"><div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">'+pillHtml(sg[0])+'<span style="font-size:13px;font-weight:800;color:var(--primary)">'+fmtMXN(sgTotal)+'</span><span style="font-size:11px;color:var(--muted)">'+sgTrips.length+' compra'+(sgTrips.length!==1?'s':'')+'</span></div>'+sgTrips.map(function(t){var ri=(window._trips||[]).findIndex(function(x){return x.id===t.id;});var isEd=(_editTripId===t.id);var bodyHtml=isEd?tripEditFormHtml(t):tripItemsReadOnlyHtml(t.items);return '<div class="trip-card"><div class="trip-header" onclick="toggleTrip(\'th-'+t.id+'\')"><div><div style="font-size:13px;font-weight:800">'+t.date+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+t.items.length+' artículos</div></div><div style="display:flex;align-items:center;gap:8px"><span class="trip-total">'+fmtMXN(Number(t.total)||0)+'</span><button class="btn btn-ghost btn-sm" onclick="toggleTripEdit(event,'+t.id+')" title="Editar fecha y artículos">✏️</button><button class="btn btn-danger btn-sm" onclick="delTrip(event,'+ri+')">🗑</button><span class="chevron'+(isEd?' open':'')+'" id="chv-th-'+t.id+'">⌄</span></div></div><div class="trip-body" id="th-'+t.id+'"'+(isEd?' style="display:block"':'')+'>'+bodyHtml+'</div></div>';}).join('')+'</div>';}).join('');
+  renderBoughtItems();
 }
 function tripItemsReadOnlyHtml(items){return (items||[]).map(function(it){var qty=Number(it.qty)||1;var priceC=Number(it.price)||0;var discC=Number(it.discount)||0;var subC=Math.max(0,priceC*qty-discC);var priceHtml=it.price?(fmtMXN(priceC)+(qty>1?'<br><span style="color:var(--primary);font-weight:800">'+fmtMXN(priceC*qty)+'</span>':'')+(discC?'<br><span style="color:#C0392B;font-weight:700">−'+fmtMXN(discC)+'</span><br><span style="color:var(--teal);font-weight:900">'+fmtMXN(subC)+'</span>':'')):'—';return '<div class="item-row"><div style="flex:1"><div class="item-name">'+esc(it.name)+(qty>1?' ×'+qty:'')+'</div>'+(it.category?'<span style="font-size:10px;color:var(--muted)">🏷️ '+esc(it.category)+'</span>':'')+'</div><span class="item-price" style="font-size:12px;font-weight:700;color:var(--muted);text-align:right">'+priceHtml+'</span></div>';}).join('');}
 function tripEditRowHtml(it,i){return '<div class="edit-row show tei-row" data-idx="'+i+'" style="margin-bottom:4px">'+'<input class="en tei-name" value="'+esc(it.name||'')+'" placeholder="Nombre">'+'<input class="ep tei-price" type="number" value="'+(it.price?pesosStr(it.price):'')+'" placeholder="Precio">'+'<input style="width:55px" type="number" class="tei-qty" value="'+esc(it.qty||1)+'" placeholder="Cant" min="1">'+'<input style="width:78px" type="number" class="tei-disc" value="'+(it.discount?pesosStr(it.discount):'')+'" placeholder="Desc.$">'+'<button class="btn btn-danger btn-sm" onclick="this.closest(\'.tei-row\').remove()">✕</button>'+'</div>';}
