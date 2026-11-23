@@ -265,15 +265,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
   </div>
   <div class="card" style="margin-bottom:.75rem"><div class="card-title">🏪 Gasto por tienda</div><div id="store-breakdown"></div></div>
   <div id="month-tabs-row" class="month-tabs"></div>
-  <div class="card" style="margin-bottom:.75rem">
-    <div class="card-title">🛒 Comprado en <span id="bought-month-label">este mes</span> — elige para tu próxima lista</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem">Todo lo que compraron este mes, sin Home Depot, farmacias ni Super Sánchez. Marca un producto y se agrega a Pendientes para la próxima ida al súper. La lista crece sola cada vez que guardan una compra.</div>
-    <div style="margin-bottom:.5rem;position:relative">
-      <input type="text" id="bought-search" placeholder="🔍 Buscar en lo comprado…" oninput="renderBoughtItems()" style="padding-right:32px">
-      <button onclick="document.getElementById('bought-search').value='';renderBoughtItems()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted)">✕</button>
-    </div>
-    <div id="bought-list"></div>
-  </div>
   <div class="import-area">
     <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="var b=document.getElementById('import-form');b.style.display=b.style.display==='none'?'block':'none'">
       <div class="card-title" style="color:var(--primary);margin:0">📥 Agregar compra pasada</div><span style="color:var(--muted)">▾</span>
@@ -291,6 +282,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--primary)}
     </div>
   </div>
   <div id="history-container"></div>
+  <div class="card" style="margin-bottom:.75rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="var b=document.getElementById('bought-body');var c=document.getElementById('bought-chev');var open=b.style.display==='block';b.style.display=open?'none':'block';if(c)c.textContent=open?'▸':'▾';">
+      <div class="card-title" style="margin:0">🛒 Comprado en <span id="bought-month-label">este mes</span> — elige para tu próxima lista</div><span id="bought-chev" style="color:var(--muted)">▸</span>
+    </div>
+    <div id="bought-body" style="display:none;margin-top:.5rem">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem">Todo lo que compraron este mes, sin Home Depot, farmacias ni Super Sánchez. Marca un producto y se agrega a Pendientes para la próxima ida al súper. La lista crece sola cada vez que guardan una compra.</div>
+      <div style="margin-bottom:.5rem;position:relative">
+        <input type="text" id="bought-search" placeholder="🔍 Buscar en lo comprado…" oninput="renderBoughtItems()" style="padding-right:32px">
+        <button onclick="document.getElementById('bought-search').value='';renderBoughtItems()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted)">✕</button>
+      </div>
+      <div id="bought-list"></div>
+    </div>
+  </div>
   </div>
 
 </div>
